@@ -118,7 +118,7 @@ Contiene las excepciones personalizadas del servicio.
 1. Clonar el repositorio 
 2. Instalar las dependencias: `pip install -r requirements.txt`
 3. Levantar el servicio con Uvicorn:
-- `uvicorn.service.api.app:app --reload`
+- `uvicorn service.api.app:app --reload`
 4. Una vez disponible el servicio, podrá recibir un JSON con la estructura definida en `api/models/invoice.py` al endpoint que se encuentra en `api/app.py`.
 
 ## Ejemplo del JSON que espera recibir el endpoint
