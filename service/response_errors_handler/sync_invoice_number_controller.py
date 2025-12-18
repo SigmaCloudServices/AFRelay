@@ -6,7 +6,7 @@ from service.utils.logger import logger
 from service.xml_management.xml_builder import extract_token_and_sign_from_xml
 
 
-def sync_invoice_number(parsed_data: dict):
+def sync_invoice_number(parsed_data: dict) -> dict:
     logger.info("Starting invoice number synchronization.")
 
     token, sign = extract_token_and_sign_from_xml("loginTicketResponse.xml")

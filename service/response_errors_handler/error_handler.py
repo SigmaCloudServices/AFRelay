@@ -8,7 +8,7 @@ errors_catalog = {
     10016 : sync_invoice_number,
 }
 
-def handle_error(error_code: int, parsed_data: dict):
+def handle_error(error_code: int, parsed_data: dict) -> dict:
 
     for error, handler in errors_catalog.items():
         if error_code == error:

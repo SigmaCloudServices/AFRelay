@@ -4,7 +4,7 @@ import subprocess
 from service.utils.logger import logger
 
 
-def sign_login_ticket_request():
+def sign_login_ticket_request() -> None:
     logger.debug("Signing loginTicketRequest.xml...")
     # Development
     openssl_path = "C:\\Program Files\\OpenSSL-Win64\\bin\\openssl.exe"

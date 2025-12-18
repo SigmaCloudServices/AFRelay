@@ -7,7 +7,7 @@ from service.time.time_management import generate_ntp_timestamp
 from service.utils.logger import logger
 
 
-def build_login_ticket_request():
+def build_login_ticket_request() -> "etree._Element":
 
     root = etree.Element("loginTicketRequest")
     header = etree.SubElement(root, "header")
@@ -25,7 +25,7 @@ def build_login_ticket_request():
 
     return root
 
-def parse_and_save_loginticketresponse(login_ticket_response: str):
+def parse_and_save_loginticketresponse(login_ticket_response: str) -> None:
 
     root = etree.fromstring(login_ticket_response.encode("utf-8"))
     header = etree.SubElement(root, "header")
@@ -76,7 +76,7 @@ def is_expired(xml_name: str) -> bool:
     else:
         return False
 
-def save_xml(root, xml_name: str):
+def save_xml(root, xml_name: str) -> None:
     
     path = f"service/xml_management/xml_files/{xml_name}"
     os.makedirs(os.path.dirname(path), exist_ok=True)
