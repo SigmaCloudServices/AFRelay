@@ -104,3 +104,26 @@ def fe_comp_ultimo_autorizado(auth: dict, ptovta: int, cbtetipo: int) -> Optiona
     except Exception as e:
         logger.error(f"General exception in fe_comp_ultimo_autorizado: {e}")
         raise
+
+# ===================
+# == HEALTH CHECK ===
+# ===================
+
+def wsfe_dummy():
+    """
+    WSFE health cheack
+    """
+    afip_wsdl = get_wsfe_wsdl()
+
+    try:
+        client = Client(wsdl=afip_wsdl)
+        health_info = client.service.FEDummy()
+
+        return health_info
+
+    except Fault as e:
+        logger.debug(f"SOAP FAULT in wsfe_dummy: {e}")
+
+    except Exception as e:
+        logger.error(f"General exception in wsfe_dummy: {e}")
+        raise

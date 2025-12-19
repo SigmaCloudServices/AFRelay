@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 
 from service.api.models.invoice import RootModel
+from service.controllers.readiness_health_controller import \
+    readiness_health_check
 from service.controllers.request_invoice_controller import \
     request_invoice_controller
 from service.utils.convert_to_dict import convert_pydantic_model_to_dict
@@ -23,6 +25,12 @@ def generate_invoice(sale_data: RootModel) -> dict:
 # ===================
 
 @app.get("/health/liveness")
-def health_check_liveness() -> dict:
+def liveness() -> dict:
 
-    return {"health" : "ok"}
+    return {"health" : "OK"}
+
+@app.get("/health/readiness")
+def readiness() -> dict:
+
+    status = readiness_health_check()
+    return status
