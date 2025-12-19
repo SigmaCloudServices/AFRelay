@@ -24,3 +24,15 @@ def generate_ntp_timestamp() -> tuple[int, str, str]:
     logger.debug(f"Datetime values: epoch: {actual_time_epoch} | gentime: {generation_time} | exptime: {expiration_time}")
 
     return actual_time_epoch, generation_time, expiration_time
+
+
+def request_ntp_for_readiness() -> bool:
+    try:
+        logger.debug("Checking NTP availability for readiness...")
+        client = ntplib.NTPClient()
+        client.request("time.afip.gov.ar")
+        return True
+    
+    except Exception as e:
+        logger.warning(f"NTP readiness check failed: {e}")
+        return False

@@ -113,6 +113,7 @@ def wsfe_dummy():
     """
     WSFE health cheack
     """
+    logger.info(f"Consulting WSFE dummy method (health check)...")
     afip_wsdl = get_wsfe_wsdl()
 
     try:
