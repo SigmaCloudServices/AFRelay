@@ -2,7 +2,7 @@
 # True = production, False = testing (homologation)
 IS_WSAA_PRODUCTION = False
 
-def get_login_cms_wsdl() -> str:
+def get_wsaa_wsdl() -> str:
     if IS_WSAA_PRODUCTION:
         return "https://wsaa.afip.gov.ar/ws/services/LoginCms?WSDL"
     else:
