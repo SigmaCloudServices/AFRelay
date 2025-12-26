@@ -1,3 +1,4 @@
+import socket
 from datetime import datetime, timedelta, timezone
 
 import ntplib
@@ -9,8 +10,17 @@ def generate_ntp_timestamp() -> tuple[int, str, str]:
 
     logger.debug("Consulting NTP for get the datetime...")
 
-    client = ntplib.NTPClient()
-    response = client.request('time.afip.gov.ar')
+    try:
+        client = ntplib.NTPClient()
+        response = client.request('time.afip.gov.ar', timeout=5)
+
+    except socket.timeout:
+        logger.warning("NTP request timed out")
+        return False, False, False
+
+    except Exception as e:
+        logger.warning(f"NTP readiness check failed: {e}")
+        return False, False, False
 
     generation_dt = datetime.fromtimestamp(response.tx_time, tz=timezone.utc)
 
@@ -30,8 +40,12 @@ def request_ntp_for_readiness() -> bool:
     try:
         logger.debug("Checking NTP availability for readiness...")
         client = ntplib.NTPClient()
-        client.request("time.afip.gov.ar")
+        client.request("time.afip.gov.ar", timeout=5)
         return True
+    
+    except socket.timeout:
+        logger.warning("NTP request timed out")
+        return False
     
     except Exception as e:
         logger.warning(f"NTP readiness check failed: {e}")
