@@ -38,7 +38,7 @@ INVOICE_SERVICE
 │   ├── controllers/
 │   ├── crypto/
 │   ├── payload_builder/
-│   ├── soap_management/
+│   ├── soap_client/
 │   ├── time/
 │   ├── utils/
 │   └── xml_management/
