@@ -1,7 +1,7 @@
 ![human-coded](https://badgen.net/static/Human%20Coded/100%25/green)
 # SOAP Web Invoicing Service for Point of Sale with Integration to the Argentine Tax Agency
 
-This system is a web service that acts as middleware between local POS systems and AFIP (Administración Federal de Ingresos Públicos) / ARCA (Customs Revenue and Control Agency), the tax authority in Argentina. It receives invoices in JSON format, transforms them into XML compatible with AFIP/ARCA Web Services, sends the request via SOAP, processes the response, and returns the result to the POS in JSON format. The goal is to simplify tax compliance from desktop applications.
+This system is a web service that acts as middleware between local POS systems and AFIP (Administración Federal de Ingresos Públicos) / ARCA (Customs Revenue and Control Agency), the tax authority in Argentina. It receives invoices in JSON format, transforms them into XML compatible with AFIP/ARCA Web Services, sends the request via HTTP, processes the response, and returns the result to the POS in JSON format. The goal is to simplify tax compliance.
 
 [![Python](https://img.shields.io/badge/python-3.11-blue?logo=python&logoColor=white)](https://www.python.org/)
 [![lxml](https://img.shields.io/badge/lxml-5.4.0-orange)](https://pypi.org/project/lxml/)
@@ -15,7 +15,7 @@ This system is a web service that acts as middleware between local POS systems a
 
 - **Language:** Python  
 - **Cryptography:** Direct use of OpenSSL with `subprocess`  
-- **Communication with AFIP:** XML + SOAP  
+- **Communication with AFIP:** XML SOAP  
 - **Communication with Point of Sale:** FastAPI  
 - **Deployment:** Docker (ideal)
 
@@ -67,7 +67,7 @@ Contains the module that signs the access ticket request using the elements from
 Contains the module that builds and manipulates the dictionaries (`dict`) required by the Zeep library to consume SOAP services.
 
 ### `soap_client/`
-Handles communication with AFIP/ARCA SOAP services and parses the responses looking for errors. Errors usually appear as an array at the end of the response.
+Handles communication with AFIP/ARCA SOAP services and parses the responses looking for errors. Contains the `.wsdl` files for WSAA and WSFE services.
 
 ### `time/`
 Contains helper functions for date and time management.
@@ -89,21 +89,14 @@ Stores the XML files required for the service to function and contains all neces
 
 ## Workflow (Simplified)
 
-1. Check if the file `loginTicketResponse.xml` exists:
-   - If it exists, verify if the token is expired:
-     - If expired, generate a new token from scratch.
-     - If not expired, reuse the current token.
-   - If it does not exist, check if the file `loginTicketRequest.xml` exists:
-     - If it exists, check if the `<expirationTime>` field in the token has expired:
-       - If expired, generate a new token from scratch.
-       - If not expired, verify if the token is expired:
-         - If expired, generate a new token from scratch.
-         - If not, generate the token from the existing one.
-     - If it does not exist, generate a new token from scratch.
+1. When an invoice is received for authorization:
+   - The controller receives the request and sends it directly to AFIP.
+   - The response from AFIP is wrapped in a dictionary with the key `status`:
+     - `"success"` if the communication with AFIP was successful.
+     - `"error"` if there was a communication problem.
+   - Errors in the returned XML are not processed or validated.
 
-2. Generate the invoice (CAE) using the valid token obtained or generated.
-
-3. Return the response with the CAE data.
+2. Return the response to the source that submitted the invoice.
 
 ## Running Locally Without Docker
 
@@ -111,7 +104,7 @@ Stores the XML files required for the service to function and contains all neces
 2. Install dependencies: `pip install -r requirements.txt`  
 3. Start the service with Uvicorn:  
    - `uvicorn service.api.app:app --reload`  
-4. Once the service is running, it will accept a JSON with the structure defined in `api/models/invoice.py` at the endpoint located in `api/app.py`.
+4. Once the service is running, it will accept a JSON with the structures defined in `api/models/` at the endpoint located in `api/app.py`.
 
 ## Example of the JSON Expected by the Endpoint
 
@@ -156,29 +149,45 @@ Stores the XML files required for the service to function and contains all neces
 }
 ```
 
-## Explanation of the SOAP Services Queried by This Software  
-Directory: `service/soap_management/soap_client.py`
+## Explanation of the SOAP services to be queried in this software (the function names are the same as the consulted service)
+Directory: `service/soap_client/wsaa.py`
 
-The file `soap_client.py` contains calls to 3 of the AFIP/ARCA SOAP services (the function names match the service names):
+The file `wsaa.py` contains the query to the SOAP method "loginCms" of AFIP/ARCA to authenticate with the tax authority:
 
 - `login_cms(b64ms)`  
-  Service that obtains the access ticket (TA) to authenticate with AFIP/ARCA.  
-  It receives a CMS (`b64ms`) parameter, which must be in binary (see `crypto/sign.py/get_binary_cms()`).  
-  Returns an XML called `loginTicketResponse.xml` containing the token needed to query other services, which expires in 12 hours.
+  Method that allows obtaining the Access Ticket (TA) to authenticate with AFIP/ARCA.  
+  Receives as a parameter a CMS (`b64ms`) that must be in binary format (see `crypto/sign.py/get_binary_cms()`).  
+  Returns an XML file called `loginTicketResponse.xml` which contains the token needed to query the other services, expires in 12 hours.
+
+Directory: `service/soap_client/wsfe.py`  
+The file `wsfe.py` contains the queries to the SOAP methods of AFIP/ARCA to fetch data about invoices or to authorize electronic receipts:
 
 - `fecae_solicitar(full_built_invoice)`  
-  Service that sends the authorization request to issue the electronic invoice.  
-  Receives a `dict` (explained later) with invoice data, access token, and signature. Returns a CAE (Electronic Authorization Code) as an `OrderedDict`. If the invoice is approved, or if there was an error with the sent data, it also returns an `OrderedDict` but with an array attached at the end containing error information.
+  Method that sends the authorization request to issue an electronic receipt (invoice).  
+  Receives a `dict` (explained later) with the invoice data, access token, and signature. Returns a CAE (Electronic Authorization Code) as an `OrderedDict` if the invoice is approved, or, if there was an error with the submitted data, also returns an `OrderedDict` with an array appended at the end containing the error information.
 
 - `fe_comp_ultimo_autorizado(auth, ptovta, cbtetipo)`  
-  This service queries the last invoice authorized by AFIP/ARCA for a given point of sale (`ptovta`) and invoice type (`cbtetipo`).  
+  This method queries the last authorized receipt by AFIP/ARCA for a specific point of sale (`ptovta`) and receipt type (`cbtetipo`).  
   It is essential to know the next invoice’s sequential number.  
-  Receives as argument:
+  Receives as arguments:
   
-  - `auth`: A `dict` containing the credentials needed for authentication, including:
+  - `auth`: A `dict` containing the credentials required for authentication, including:
     - `token`: Current access token.
     - `sign`: Digital signature.
     - `cuit`: CUIT of the issuing company.
+
+- `fe_comp_consultar(auth, fecomp_req)`  
+  This method queries a specific already issued receipt to obtain information about it.  
+  Receives as arguments:
+  - `auth`: A `dict` containing the credentials required for authentication, including:
+    - `token`: Current access token.
+    - `sign`: Digital signature.
+    - `cuit`: CUIT of the issuing company.
+
+  - `fecomp_req`: Another `dict` carrying the information needed to identify the receipt to fetch:
+    - `PtoVta`: Point of sale from which that receipt was authorized.
+    - `CbteTipo`: Receipt type.
+    - `CbteNro`: Receipt number. This corresponds to the "CbteDesde" or "CbteHasta" field in the invoices.
 
 ---
 
@@ -263,7 +272,7 @@ The file `soap_client.py` contains calls to 3 of the AFIP/ARCA SOAP services (th
 
 ---
 
-### Example of the structure that `fecae_solicitar(full_built_invoice)` should receive:
+### Example of the structure expected by the `/wsfe/invoices` endpoint:
 
 ```text
 {

@@ -1,7 +1,7 @@
 ![human-coded](https://badgen.net/static/Human%20Coded/100%25/green)
 # Servicio Web SOAP de Facturación para Punto de Venta con Integración a la Agencia Tributaria Argentina
 
-Este sistema es un servicio web que actúa como middleware entre sistemas POS locales y AFIP (Administración Federal de Ingresos Públicos) / ARCA (Agencia de Recaudación y Control Aduanero) el organismo fiscal de Argentina. Recibe comprobantes en formato JSON, los transforma a XML compatible con los Web Services de AFIP/ARCA, envía la solicitud vía SOAP, procesa la respuesta y devuelve el resultado al POS en formato JSON. El objetivo es simplificar el cumplimiento fiscal desde aplicaciones de escritorio.
+Este sistema es un servicio web que actúa como middleware entre sistemas POS locales y AFIP (Administración Federal de Ingresos Públicos) / ARCA (Agencia de Recaudación y Control Aduanero) el organismo fiscal de Argentina. Recibe comprobantes en formato JSON, los transforma a XML compatible con los Web Services de AFIP/ARCA, envía la solicitud vía HTTP, procesa la respuesta y devuelve el resultado al POS en formato JSON. El objetivo es simplificar el cumplimiento fiscal.
 
 [![Python](https://img.shields.io/badge/python-3.11-blue?logo=python&logoColor=white)](https://www.python.org/)
 [![lxml](https://img.shields.io/badge/lxml-5.4.0-orange)](https://pypi.org/project/lxml/)
@@ -15,7 +15,7 @@ Este sistema es un servicio web que actúa como middleware entre sistemas POS lo
 
 - **Lenguaje:** Python  
 - **Criptografía:** Uso directo de OpenSSL con `subprocess`  
-- **Comunicación con AFIP:** XML + SOAP  
+- **Comunicación con AFIP:** XML SOAP  
 - **Comunicación con Punto de Venta:** FastAPI  
 - **Deploy:** Docker (ideal)
 
@@ -67,7 +67,7 @@ Contiene el módulo que firma la solicitud del ticket de acceso utilizando los e
 Contiene el módulo que arma y manipula los diccionarios (`dict`) que necesita la librería Zeep para consumir los servicios SOAP.
 
 ### `soap_client/`
-Maneja la comunicación con los servicios SOAP de AFIP/ARCA y analiza las respuestas en busca de errores. Los errores suelen presentarse como un array al final de la respuesta.
+Maneja la comunicación con los servicios SOAP de AFIP/ARCA. Contiene los archivos `.wsdl` para los servicios WSAA y WSFEE.
 
 ### `time/`
 Contiene funciones auxiliares para la gestión de fechas y horas.
@@ -89,21 +89,14 @@ Almacena los archivos XML necesarios para el funcionamiento del servicio y conti
 
 ## Flujo de trabajo (simplificado)
 
-1. Verificar si el archivo `loginTicketResponse.xml` existe:
-   - Si existe, verificar si el token está expirado:
-     - Si está expirado, generar un nuevo token desde cero.
-     - Si no está expirado, reutilizar el token actual.
-   - Si no existe, verificar si el archivo `loginTicketRequest.xml` existe:
-     - Si existe, verificar si el campo `<expirationTime>` del token expiró:
-       - Si expiró, generar un nuevo token desde cero.
-       - Si no expiró, verificar si el token está expirado:
-         - Si está expirado, generar un nuevo token desde cero.
-         - Si no, generar el token a partir del existente.
-     - Si no existe, generar un nuevo token desde cero.
+1. Cuando llega una factura para autorizar:
+   - El controlador recibe la solicitud y la envía directamente a AFIP.
+   - La respuesta de AFIP se envuelve en un diccionario con la clave `status`:
+     - `"success"` si la comunicación con AFIP fue exitosa.
+     - `"error"` si hubo un problema de comunicación.
+   - No se procesan ni se validan errores del XML devuelto.
 
-2. Generar la factura (CAE) con el token válido obtenido o generado.
-
-3. Devolver la respuesta con los datos del CAE.
+2. Devolver la respuesta al origen que envió la factura.
 
 ## Ejecutar localmente sin Docker
 
@@ -111,9 +104,9 @@ Almacena los archivos XML necesarios para el funcionamiento del servicio y conti
 2. Instalar las dependencias: `pip install -r requirements.txt`
 3. Levantar el servicio con Uvicorn:
 - `uvicorn service.api.app:app --reload`
-4. Una vez disponible el servicio, podrá recibir un JSON con la estructura definida en `api/models/invoice.py` al endpoint que se encuentra en `api/app.py`.
+4. Una vez disponible el servicio, podrá recibir JSON con las estructuras definida en `api/models/` a los endpoints que se encuentran en `api/app.py`.
 
-## Ejemplo del JSON que espera recibir el endpoint
+## Ejemplo del JSON que espera recibir el endpoint `/wsfe/invoices`
 
 ```json
 {
@@ -156,22 +149,25 @@ Almacena los archivos XML necesarios para el funcionamiento del servicio y conti
 }
 ```
 
-## Explicación de los servicios SOAP a consultar que se encuentran en este software  
-Directorio: `service/soap_management/soap_client.py`
+## Explicación de los servicios SOAP a consultar que se encuentran en este software (el nombre de las funciones es el mismo que el del servicio consultado)
+Directorio: `service/soap_client/wsaa.py`
 
-El archivo `soap_client.py` contiene las consultas a 3 de los servicios SOAP de AFIP/ARCA (el nombre de las funciones es el mismo que el del servicio consultado):
+El archivo `wsaa.py` contiene la consulta al metodo SOAP "loginCms" de AFIP/ARCA para autenticarse ante la autoridad fiscal:
 
 - `login_cms(b64ms)`  
-  Servicio que permite obtener el ticket de acceso (TA) para autenticarse ante AFIP/ARCA.
+  Método que permite obtener el ticket de acceso (TA) para autenticarse ante AFIP/ARCA.
   Recibe como parámetro un CMS (`b64ms`) que debe estar en binario (ver `crypto/sign.py/get_binary_cms()`).
   Devuelve un XML llamado `loginTicketResponse.xml` que contiene el token necesario para consultar los otros servicios, expira en 12 horas.
 
+Directorio: `service/soap_client/wsfe.py`
+El archivo `wsfe.py` contiene las consultas a los metodos SOAP de AFIP/ARCA para consultar datos acerca de facturas, o para autorizar comprobantes:
+
 - `fecae_solicitar(full_built_invoice)`  
-  Servicio que envía la solicitud de autorización para emitir el comprobante electrónico (factura).  
+  Método que envía la solicitud de autorización para emitir el comprobante electrónico (factura).  
   Recibe un `dict` (se explica más adelante) con los datos de la factura, el token de acceso y la firma. Devuelve un CAE (Código de Autorización Electrónico) en forma de `OrderedDict`. Si la factura es aprobada, o, si hubo un error con los datos enviados, devuelve también un `OrderedDict` pero con un array adjunto al final con información del error.
 
 - `fe_comp_ultimo_autorizado(auth, ptovta, cbtetipo)`  
-  Este servicio consulta cuál fue el último comprobante autorizado por AFIP/ARCA para un determinado punto de venta (`ptovta`) y tipo de comprobante (`cbtetipo`).  
+  Este método consulta cuál fue el último comprobante autorizado por AFIP/ARCA para un determinado punto de venta (`ptovta`) y tipo de comprobante (`cbtetipo`).  
   Es fundamental para conocer el número correlativo que debe tener la próxima factura.  
   Recibe como argumento:
   
@@ -180,6 +176,18 @@ El archivo `soap_client.py` contiene las consultas a 3 de los servicios SOAP de 
     - `sign`: Firma digital.
     - `cuit`: CUIT de la empresa emisora.
 
+- `fe_comp_consultar(auth, fecomp_req)`  
+  Este método consulta un comprobante en específico ya emitido, para obtener información acerca del mismo.
+  Recibe como argumento:
+  - `auth`: Un `dict` que contiene las credenciales necesarias para la autenticación, incluyendo:
+    - `token`: Token de acceso vigente.
+    - `sign`: Firma digital.
+    - `cuit`: CUIT de la empresa emisora.
+
+  - `fecomp_req`: Otro - `dict` que lleva información para identificar el comprobante a obtener:
+    - `PtoVta` : Punto de venta desde el cual se autorizó ese comprobante.
+    - `CbteTipo`: Tipo de comprobante.
+    - `CbteNro`: Número de comprobante. Es el campo "CbteDesde" o "CbteHasta" en las facturas. 
 ---
 
 ## Consideraciones adicionales
@@ -218,8 +226,8 @@ El archivo `soap_client.py` contiene las consultas a 3 de los servicios SOAP de 
         <expirationTime>2025-08-17T02:49:34.147-03:00</expirationTime>
     </header>
     <credentials>
-        <token>PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiIHN0YW5kYWxvbmU9InllcyI/Pgo8c3NvIHZlcnNpb249IjIuMCI+CiAgICA8aWQgc3JjPSJDTj13c2FhaG9tbywgTz1BRklQLCBDPUFSLCBTRVJJQUxOVU1CRVI9Q1VJVCAzMzY5MzQ1MDIzOSIgZHN0PSJDTj13c2ZlLCBPPUFGSVAsIEM9QVIiIHVuaXF1ZV9pZD0iMzY1MzU1NDAyNCIgZ2VuX3RpbWU9IjE3NTUzNjY1MTQiIGV4cF90aW1lPSIxNzU1NDA5Nzc0Ii8+CiAgICA8b3BlcmF0aW9uIHR5cGU9ImxvZ2luIiB2YWx1ZT0iZ3JhbnRlZCI+CiAgICAgICAgPGxvZ2luIGVudGl0eT0iMzM2OTM0NTAyMzkiIHNlcnZpY2U9IndzZmUiIHVpZD0iU0VSSUFMTlVNQkVSPUNVSVQgMjA0NTc4NDQ2MTIsIENOPWNlcnRpZmljYWRvZGVmaW5pdGl2byIgYXV0aG1ldGhvZD0iY21zIiByZWdtZXRob2Q9IjIyIj4KICAgICAgICAgICAgPHJlbGF0aW9ucz4KICAgICAgICAgICAgICAgIDxyZWxhdGlvbiBrZXk9IjIwNDU3ODQ0NjEyIiByZWx0eXBlPSI0Ii8+CiAgICAgICAgICAgIDwvcmVsYXRpb25zPgogICAgICAgIDwvbG9naW4+CiAgICA8L29wZXJhdGlvbj4KPC9zc28+Cg==</token>
-        <sign>N82Px2J2X5Gw1mT+uo5NV9HjtR4z0Cvo2GRAssIzDuL9Qi+AhZEX9TiZqTnmh7xPG6xU9OF+/ysW9d69pGevcR+hgr9oI3QEVWJXCmCd6MfnMNIP4eTR58V+sZZmoW6IeZXSkCotuq2WqHpW9IPLudO0LqnO8lvGSgx7ucrhpho=</sign>
+        <token>PD94bWwgdm...KPC9zc28+Cg==</token>
+        <sign>N82Px2...rhpho=</sign>
     </credentials>
 </loginTicketResponse>
 
