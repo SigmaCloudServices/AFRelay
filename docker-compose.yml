@@ -1,0 +1,22 @@
+version: "3.9"
+
+services:
+  api:
+    build: .
+    container_name: afip-wsfe-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-default-secret-change-me}
+      - DOCS_USERNAME=${DOCS_USERNAME:-admin}
+      - DOCS_PASSWORD=${DOCS_PASSWORD:-admin}
+    volumes:
+      - ./certs:/app/service/certificates:ro
+      - ./xml:/app/service/xml_management/xml_files
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/liveness"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
