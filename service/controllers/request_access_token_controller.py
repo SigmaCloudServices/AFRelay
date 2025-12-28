@@ -5,7 +5,7 @@ from service.xml_management.xml_builder import (
     build_login_ticket_request, parse_and_save_loginticketresponse, save_xml)
 
 
-async def generate_token() -> None:
+async def generate_afip_access_token() -> None:
 
     logger.info("Generating a new access token...")
 

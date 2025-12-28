@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-from service.controllers.request_access_token_controller import generate_token
+from service.controllers.request_access_token_controller import generate_afip_access_token
 from service.utils.logger import logger
 from service.xml_management.xml_builder import is_expired, xml_exists
 
@@ -12,16 +12,16 @@ async def run_job():
     logger.info("Starting job: verifying token expiration")
 
     if not xml_exists("loginTicketRequest.xml"):
-        await generate_token()
+        await generate_afip_access_token()
         return
     
     if xml_exists("loginTicketResponse.xml"):
         if is_expired("loginTicketResponse.xml"):
-            await generate_token()
+            await generate_afip_access_token()
             return
         
     if not xml_exists("loginTicketResponse.xml"):
-        await generate_token()
+        await generate_afip_access_token()
         return
         
     logger.info("Token is still valid. Job finished.")
