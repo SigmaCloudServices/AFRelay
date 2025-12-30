@@ -49,7 +49,7 @@ Below is an ASCII map of the folder structure and a brief description of each on
 INVOICE_SERVICE  
 ├── service  
 │   ├── api/ 
-│   ├── certificates/
+│   ├── app_certs/
 │   ├── controllers/
 │   ├── crypto/
 │   ├── payload_builder/
@@ -69,14 +69,14 @@ INVOICE_SERVICE
 ### `api/`
 Contains the POST endpoint that receives the JSON with sales and invoice information to be built before sending it for approval. It also contains the Pydantic schemas for JSON validation.
 
-### `certificates/`
+### `app_certs/`
 Stores certificates, private keys, CSRs, and other cryptographic elements needed to sign the access ticket request.
 
 ### `controllers/`
 Contains controllers separated by SOAP method. Each controller handles a specific method.
 
 ### `crypto/`
-Contains the module that signs the access ticket request using the elements from the `certificates` folder.
+Contains the module that signs the access ticket request using the elements from the `app_certs` folder.
 
 ### `payload_builder/`
 Contains the module that builds and manipulates the dictionaries (`dict`) required by the Zeep library to consume SOAP services.

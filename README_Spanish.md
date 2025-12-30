@@ -50,7 +50,7 @@ A continuación se muestra un mapa ASCII de la arquitectura de carpetas y una br
 INVOICE_SERVICE  
 ├── service  
 │   ├── api/ 
-│   ├── certificates/
+│   ├── app_certs/
 │   ├── controllers/
 │   ├── crypto/
 │   ├── payload_builder/
@@ -70,14 +70,14 @@ INVOICE_SERVICE
 ### `api/`
 Contiene el endpoint POST que recibe los JSON con información de la venta y de la factura a construir antes de enviarla para su aprobación. También contiene los esquemas de Pydantic para la validación del JSON.
 
-### `certificates/`
+### `app_certs/`
 Contiene los certificados, claves privadas, CSRs y otros elementos criptográficos necesarios para firmar la solicitud del ticket de acceso.
 
 ### `controllers/`
 Contiene controladores separados por método SOAP. Cada controlador maneja un método específico.
 
 ### `crypto/`
-Contiene el módulo que firma la solicitud del ticket de acceso utilizando los elementos de la carpeta `certificates`.
+Contiene el módulo que firma la solicitud del ticket de acceso utilizando los elementos de la carpeta `app_certs`.
 
 ### `payload_builder/`
 Contiene el módulo que arma y manipula los diccionarios (`dict`) que necesita la librería Zeep para consumir los servicios SOAP.
