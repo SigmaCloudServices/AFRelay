@@ -41,7 +41,7 @@ def sign_login_ticket_request() -> None:
         logger.debug("loginTicketRequest.xml successfully signed.")
 
 def get_binary_cms() -> str:
-    with open("service/crypto/LoginTicketRequest.xml.cms", 'rb') as cms:
+    with open("service/crypto/loginTicketRequest.xml.cms", 'rb') as cms:
         cleaned_cms = cms.read()
 
     b64_cms = base64.b64encode(cleaned_cms).decode("ascii")
