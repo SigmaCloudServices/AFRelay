@@ -5,9 +5,10 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, status
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.openapi.utils import get_openapi
+from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from starlette.exceptions import HTTPException
-from fastapi.responses import JSONResponse
+
 from service.api.models.invoice_authorization import RootModel
 from service.api.models.invoice_query import InvoiceBase, InvoiceQueryRequest
 from service.controllers.consult_invoice_controller import \
@@ -18,22 +19,16 @@ from service.controllers.request_invoice_controller import \
     request_invoice_controller
 from service.controllers.request_last_authorized_controller import \
     get_last_authorized_info
-from service.soap_client.async_client import WSFEClientManager
-from service.soap_client.wsdl.wsdl_manager import get_wsfe_wsdl
 from service.utils.afip_token_scheduler import start_scheduler, stop_scheduler
 from service.utils.convert_to_dict import convert_pydantic_model_to_dict
 from service.utils.jwt_validator import verify_token
 from service.utils.logger import logger
 
-afip_wsdl = get_wsfe_wsdl()
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     start_scheduler()
-    manager = WSFEClientManager(afip_wsdl)
     yield
-    await manager.close()
     stop_scheduler()
 
 app = FastAPI(lifespan=lifespan)
@@ -76,6 +71,7 @@ async def consult_invoice(comp_info: InvoiceQueryRequest, jwt = Depends(verify_t
 
     return result
 
+
 # ===================
 # == HEALTH CHECKS ==
 # ===================
@@ -95,6 +91,7 @@ async def readiness() -> dict:
 # ===================
 # === DOCS CONFIG ===
 # ===================
+
 security = HTTPBasic()
 
 USERNAME = os.getenv('DOCS_USERNAME')
