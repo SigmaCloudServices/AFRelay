@@ -57,3 +57,28 @@ async def test_consult_invoice_minimal(client: AsyncClient, httpserver_fixed_por
     assert resp.status_code == 200
     data = resp.json()
     assert data["status"] == "success"
+
+
+@pytest.mark.asyncio
+async def test_consult_invoice_httperror(client: AsyncClient, httpserver_fixed_port, wsfe_manager, override_auth):
+
+    # Configure http server
+    httpserver_fixed_port.expect_request("/not_existent", method="POST").respond_with_data(
+        SOAP_RESPONSE, content_type="text/xml"
+    )
+
+    # Payload
+    payload = {
+        "Cuit": 30740253022,
+        "PtoVta": 1,
+        "CbteTipo": 6,
+        "CbteNro": 100,
+    }
+
+    # Fastapi endpoint call
+    resp = await client.post("/wsfe/invoices/query", json=payload)
+
+    assert resp.status_code == 200 # 200 its for FastAPI endpoint
+    data = resp.json()
+    assert data["status"] == "error"
+    assert data["error"]["error_type"] == "HTTP Error"
