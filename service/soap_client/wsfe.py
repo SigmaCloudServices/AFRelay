@@ -4,9 +4,7 @@ from builtins import ConnectionResetError
 import httpx
 from tenacity import (before_sleep_log, retry, retry_if_exception_type,
                       stop_after_attempt, wait_fixed)
-from zeep import AsyncClient, Client
 from zeep.exceptions import Fault, TransportError, XMLSyntaxError
-from zeep.transports import AsyncTransport
 
 from service.soap_client.async_client import WSFEClientManager
 from service.soap_client.format_error import build_error_response
