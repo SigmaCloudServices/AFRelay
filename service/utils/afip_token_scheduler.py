@@ -4,6 +4,8 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from service.controllers.request_access_token_controller import \
     generate_afip_access_token
+from service.time.time_management import \
+    generate_ntp_timestamp as time_provider
 from service.utils.logger import logger
 from service.xml_management.xml_builder import is_expired, xml_exists
 
@@ -17,7 +19,7 @@ async def run_job():
         return
     
     if xml_exists("loginTicketResponse.xml"):
-        if is_expired("loginTicketResponse.xml"):
+        if is_expired("loginTicketResponse.xml", time_provider):
             await generate_afip_access_token()
             return
         
