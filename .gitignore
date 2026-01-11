@@ -24,3 +24,6 @@ __pycache__/
 
 # Ignore cms files
 *.cms
+
+# Ignore .coverage file
+.coverage
