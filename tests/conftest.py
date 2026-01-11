@@ -68,7 +68,8 @@ def httpserver_fixed_port():
 async def wsfe_manager(httpserver_fixed_port):
     WSFEClientManager.reset_singleton()
 
-    afip_wsdl = os.path.join("tests\\mocks", "wsfe_mock.wsdl")
+    mock_path = Path("tests") / "mocks" / "wsfe_mock.wsdl"
+    afip_wsdl = str(mock_path.resolve())
     manager = WSFEClientManager(afip_wsdl)
     yield manager
     await manager.close()
