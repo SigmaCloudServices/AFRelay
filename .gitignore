@@ -1,7 +1,7 @@
 # Ignore cryptography files
-service/certificates/*
-!service/certificates/.gitkeep
-!service/certificates/README.md
+service/app_certs/*
+!service/app_certs/.gitkeep
+!service/app_certs/README.md
 
 /host_certs/*
 !host_certs/.gitkeep
@@ -21,6 +21,10 @@ __pycache__/
 *host_xml/*
 !host_xml/.gitkeep
 !host_xml/README.md
+
+*service/xml_management/app_xml_files
+!service/xml_management/app_xml_files/.gitkeep
+!service/xml_management/app_xml_files/README.md
 
 # Ignore cms files
 *.cms
