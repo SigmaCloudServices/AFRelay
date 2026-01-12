@@ -21,7 +21,7 @@ async def generate_afip_access_token() -> None:
     sign_login_ticket_request()
     b64_cms = get_binary_cms()
 
-    async def make_request():
+    async def login_cms():
         try:
             httpx_client = httpx.AsyncClient(timeout=30.0)
             transport = AsyncTransport(client=httpx_client)
@@ -34,7 +34,7 @@ async def generate_afip_access_token() -> None:
             else:
                 await httpx_client.aclose()
 
-    login_ticket_response = await consult_afip_wsaa(make_request, "loginCms")
+    login_ticket_response = await consult_afip_wsaa(login_cms, "loginCms")
 
     if login_ticket_response["status"] == "success":
         parse_and_save_loginticketresponse(login_ticket_response["response"], save_xml)
