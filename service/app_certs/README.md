@@ -10,4 +10,4 @@ Files placed in the host folder `host_certs/` are mounted here as a Docker volum
 
 For security reasons, these files are excluded from the repository using `.gitignore`.
 
-⚠️ **Never upload these files to GitHub.**
+**Never upload these files to GitHub.**

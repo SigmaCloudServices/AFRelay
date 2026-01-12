@@ -8,4 +8,4 @@ This folder is intended to store cryptographic files used as Docker volumes, suc
 
 These files are mounted inside the container at `app_certs/`.
 
-⚠️ **Never upload these files to GitHub.**
+**Never upload these files to GitHub.**
