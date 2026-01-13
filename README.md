@@ -18,7 +18,7 @@
 # AFRelay: Billing Microservice with Integration to the Argentine Tax Agency
 
 **AFRelay** is a middleware that eliminates the need to manually build XML and lets developers work with AFIP as if it were a REST API.  
-Free. No closed-source infrastructure. No XML.
+Free. No SaaS. No closed-source infrastructure. No XML and no SOAP manipulated by the developer.
 
 - Fully async I/O network, capable of handling simultaneous requests without blocking.
 - Automatically renews the access ticket each 11 hours and when the service starts.

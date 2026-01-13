@@ -18,7 +18,7 @@
 # AFRelay: Microservicio de Facturación con Integración a la Agencia Tributaria Argentina
 
 **AFRelay** Es un middleware que evita al desarrollador armar XML y que deja comunicarse con AFIP como si fuera una API REST.  
-Gratis. Sin infraestructura Closed-Source. Sin XML. Sin que quien lo usa tenga que involucrarse con el protocolo SOAP.
+Gratis. Sin infraestructura Closed-Source. Sin que el desarrollador tenga que involucrarse con XML ni SOAP.
 
 - I/O de red asíncrono, capaz de manejar solicitudes simultáneas sin bloquearse.
 - Renueva el ticket de acceso cada 11 horas automáticamente y al levantar el servicio.
