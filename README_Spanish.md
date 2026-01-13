@@ -86,7 +86,7 @@ En caso de levantar el servicio sin usar Docker, es necesario instalar la herram
   ```bash
   cd AFRelay
   ```
-2. Instalar dependencias
+3. Instalar dependencias
   ```bash
   pip install -r requirements.txt
   ```
