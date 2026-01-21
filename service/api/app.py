@@ -22,7 +22,9 @@ from service.controllers.request_last_authorized_controller import \
 from service.utils.afip_token_scheduler import start_scheduler, stop_scheduler
 from service.utils.jwt_validator import verify_token
 from service.utils.logger import logger
+from dotenv import load_dotenv
 
+load_dotenv(override=False)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
