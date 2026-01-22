@@ -38,7 +38,9 @@ async def generate_afip_access_token() -> None:
 
     if login_ticket_response["status"] == "success":
         parse_and_save_loginticketresponse(login_ticket_response["response"], save_xml)
+    
         logger.info("Token generated successfully.")
-        return
-
-    logger.error("Failed to generate access token.")
+        return {"status" : "success"}
+    else:
+        logger.error("Failed to generate access token.")
+        return {"status" : "error generating access token."}
