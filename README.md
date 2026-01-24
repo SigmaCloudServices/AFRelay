@@ -21,18 +21,6 @@ Once authenticated, the authentication web service will provide two credentials:
 - A private key with the extension "```.key```"
 - An X.509 certificate with the extension "```.pem```"
 
-This API requires `openssl` to be installed on the system, as it is used to sign CMS requests.  
-If running the service without Docker, you need to install the tool:
-
-- **On Debian/Ubuntu:**
-  ```bash
-  apt-get update && apt-get install -y openssl
-  ```
-
-- **On Windows:**
-  - Ensure OpenSSL is installed and added to the PATH, for example: ```C:\\Program Files\\OpenSSL-Win64\\bin\\openssl.exe```.
-  - To download OpenSSL: https://slproweb.com/products/Win32OpenSSL.html
-
 ### Quick start with Docker
 
 1. Clone the repository

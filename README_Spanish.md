@@ -25,18 +25,6 @@ Una vez obtenidos los archivos necesarios, se pueden colocar en las siguientes c
 - ```host_certs/``` para Docker.
 - ```service/app_certs``` para usar el servicio sin Docker.
 
-Esta API requiere que `openssl` esté instalado en el sistema, ya que se utiliza para firmar solicitudes CMS.
-En caso de levantar el servicio sin usar Docker, es necesario instalar la herramienta:
-
-- **En Debian/Ubuntu:**
-  ```bash
-  apt-get update && apt-get install -y openssl
-  ```
-
-- **En Windows:**
-  - Asegurarse de que OpenSSL esté instalado y añadirlo al PATH, por ejemplo: ```C:\\Program Files\\OpenSSL-Win64\\bin\\openssl.exe```.
-  - Para descargar OpenSSL: https://slproweb.com/products/Win32OpenSSL.html
-
 ### Quick start con Docker
 
 1. Clonar el repositorio
