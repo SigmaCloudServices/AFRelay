@@ -21,10 +21,6 @@ class AfipPaths:
         return self.base_xml / "loginTicketResponse.xml"
     
     @property
-    def login_request_cms(self) -> Path:
-        return self.base_crypto / "loginTicketRequest.xml.cms"
-    
-    @property
     def certificate(self) -> Path:
         return self.base_certs / "returned_certificate.pem"
     
