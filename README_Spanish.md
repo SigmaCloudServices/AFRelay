@@ -6,7 +6,7 @@
 **AFRelay** Es un middleware que evita al desarrollador armar XML y que deja comunicarse con AFIP como si fuera una API REST.  
 Gratis. Sin modelo SaaS. Sin infraestructura Closed-Source y sin que el desarrollador tenga que involucrarse con XML ni SOAP. **Control total.**
 
-- I/O de red asíncrono, capaz de manejar solicitudes simultáneas sin bloquearse.
+- I/O de red asíncrono evita que el alto tiempo de respuesta del web service bloquee el event loop del servicio.
 - Renueva el ticket de acceso cada 11 horas automáticamente y al levantar el servicio.
 - No resuelve errores automaticamente ni los lanza, sólo devuelve información en forma de JSON.
 
