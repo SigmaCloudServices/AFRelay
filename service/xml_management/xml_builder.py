@@ -7,7 +7,7 @@ from config import paths
 from service.utils.logger import logger
 
 
-def build_login_ticket_request(time_provider) -> "etree._Element":
+def build_login_ticket_request(time_provider, service_name="wsfe") -> "etree._Element":
 
     root = etree.Element("loginTicketRequest")
     header = etree.SubElement(root, "header")
@@ -21,11 +21,11 @@ def build_login_ticket_request(time_provider) -> "etree._Element":
     unique_id.text = str(actual_hour)
     generation_time_label.text = str(generation_time)
     expiration_time_label.text = str(expiration_time)
-    service.text = "wsfe"
+    service.text = service_name
 
     return root
 
-def parse_and_save_loginticketresponse(login_ticket_response: str, xml_saver) -> None:
+def parse_and_save_loginticketresponse(login_ticket_response: str, xml_saver, xml_name="loginTicketResponse.xml") -> None:
 
     root = etree.fromstring(login_ticket_response.encode("utf-8"))
     header = etree.SubElement(root, "header")
@@ -39,11 +39,25 @@ def parse_and_save_loginticketresponse(login_ticket_response: str, xml_saver) ->
     token = etree.SubElement(credentials, "token")
     sign = etree.SubElement(credentials, "sign")
 
-    xml_saver(root, "loginTicketResponse.xml")
+    xml_saver(root, xml_name)
 
 def extract_token_and_sign_from_xml() -> tuple[str, str]:
 
     path = paths.get_afip_paths().login_response
+    tree = etree.parse(path)
+    root = tree.getroot()
+
+    token_label = root.find(".//token")
+    sign_label = root.find(".//sign")
+
+    token = token_label.text
+    sign = sign_label.text
+
+    return token, sign
+
+def extract_wspci_token_and_sign_from_xml() -> tuple[str, str]:
+
+    path = paths.get_afip_paths().wspci_login_response
     tree = etree.parse(path)
     root = tree.getroot()
 

@@ -1,6 +1,7 @@
 from zeep.helpers import serialize_object
 
 from service.soap_client.wsfe import wsfe_dummy
+from service.soap_client.wspci import wspci_dummy
 from service.time.time_management import request_ntp_for_readiness
 from service.utils.logger import logger
 
@@ -30,8 +31,14 @@ async def readiness_health_check() -> dict:
     wsfe_health_info_parsed = serialize_object(wsfe_health_info)
     logger.debug("WSFE dummy check OK")
 
+    # Check WSPCI
+    wspci_health_info = await wspci_dummy()
+    wspci_health_info_parsed = serialize_object(wspci_health_info)
+    logger.debug("WSPCI dummy check OK")
+
     logger.debug("Readiness health check finished")
     return {
         "ntp" : ntp,
-        "wsfe_health" : wsfe_health_info_parsed
+        "wsfe_health" : wsfe_health_info_parsed,
+        "wspci_health" : wspci_health_info_parsed
         }

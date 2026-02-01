@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from starlette.exceptions import HTTPException
 
-from service.api import wsaa, wsfe
+from service.api import wsaa, wsfe, wspci
 from service.controllers.readiness_health_controller import \
     readiness_health_check
 from service.utils.afip_token_scheduler import start_scheduler, stop_scheduler
@@ -27,6 +27,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 app.include_router(wsaa.router)
 app.include_router(wsfe.router)
+app.include_router(wspci.router)
 
 # ===================
 # == HEALTH CHECKS ==

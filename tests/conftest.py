@@ -17,7 +17,7 @@ from zeep.transports import AsyncTransport
 
 from config.paths import AfipPaths
 from service.api.app import app
-from service.soap_client.async_client import WSFEClientManager, wsaa_client
+from service.soap_client.async_client import WSFEClientManager, WSPCIClientManager, wsaa_client
 from service.utils.jwt_validator import verify_token
 
 # Zeep logs for debugging
@@ -103,6 +103,61 @@ async def wsfe_manager(wsfe_httpserver_fixed_port):
     await manager.close()
 
     WSFEClientManager.reset_singleton()
+
+
+# Force http server at 51893 for wspci
+@pytest.fixture
+def wspci_httpserver_fixed_port():
+    server = HTTPServer(port=51893)
+    server.start()
+    yield server
+    server.stop()
+
+
+# Initialize zeep async client for wspci with mock wsdl
+# only if httpserver is up
+@pytest_asyncio.fixture
+async def wspci_manager(wspci_httpserver_fixed_port):
+    WSPCIClientManager.reset_singleton()
+
+    mock_path = Path("tests") / "mocks" / "wspci_mock.wsdl"
+    afip_wsdl = str(mock_path.resolve())
+    manager = WSPCIClientManager(afip_wsdl)
+    yield manager
+    await manager.close()
+
+    WSPCIClientManager.reset_singleton()
+
+
+# Patch functions with fakes for request_wspci_access_token_controller integration test.
+@pytest.fixture
+def patch_request_wspci_access_token_dependencies():
+
+    def fake_time_provider():
+        return (
+            1767764408,
+            "2026-01-07T05:40:08Z",
+            "2026-01-07T05:50:08Z",
+        )
+
+    def fake_wsdl_manager():
+        mock_path = Path("tests") / "mocks" / "wsaa_mock.wsdl"
+        afip_wsdl = str(mock_path.resolve())
+        return afip_wsdl
+
+    def wsaa_client_mock(afip_wsdl):
+
+        httpx_client = httpx.AsyncClient(timeout=30.0)
+        transport = AsyncTransport(client=httpx_client)
+        client = zeepAsyncClient(wsdl=afip_wsdl, transport=transport)
+
+        return client, httpx_client
+
+    with patch("service.controllers.request_wspci_access_token_controller.get_wsaa_wsdl", fake_wsdl_manager):
+        with patch("service.controllers.request_wspci_access_token_controller.wsaa_client", wsaa_client_mock):
+            with patch("service.controllers.request_wspci_access_token_controller.generate_ntp_timestamp", fake_time_provider):
+                with patch("service.controllers.request_wspci_access_token_controller.get_wspci_as_bytes", generate_test_files):
+                    yield
 
 
 # Patch functions with fakes for request_access_token_controller integration test.

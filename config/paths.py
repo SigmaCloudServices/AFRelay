@@ -21,6 +21,14 @@ class AfipPaths:
         return self.base_xml / "loginTicketResponse.xml"
     
     @property
+    def wspci_login_request(self) -> Path:
+        return self.base_xml / "wspci_loginTicketRequest.xml"
+
+    @property
+    def wspci_login_response(self) -> Path:
+        return self.base_xml / "wspci_loginTicketResponse.xml"
+
+    @property
     def certificate(self) -> Path:
         return self.base_certs / "returned_certificate.pem"
     
@@ -40,6 +48,20 @@ def get_as_bytes() -> tuple[bytes, bytes, bytes]:
     paths = get_afip_paths()
 
     with open(paths.login_request, 'rb') as file:
+        login_ticket_request_bytes = file.read()
+
+    with open(paths.private_key, 'rb') as file:
+        private_key_bytes = file.read()
+
+    with open(paths.certificate, 'rb') as file:
+        certificate_bytes = file.read()
+
+    return login_ticket_request_bytes, private_key_bytes, certificate_bytes
+
+def get_wspci_as_bytes() -> tuple[bytes, bytes, bytes]:
+    paths = get_afip_paths()
+
+    with open(paths.wspci_login_request, 'rb') as file:
         login_ticket_request_bytes = file.read()
 
     with open(paths.private_key, 'rb') as file:
