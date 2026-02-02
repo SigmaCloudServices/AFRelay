@@ -10,7 +10,7 @@ router = APIRouter()
 @router.post("/wsaa/token")
 async def renew_access_token(jwt = Depends(verify_token)) -> dict:
     
-    logger.info("Received request to generate invoice at /wsfe/invoices")
+    logger.info("Received request to generate WSAA access token at /wsaa/token")
 
     response_status = await generate_afip_access_token()
 
