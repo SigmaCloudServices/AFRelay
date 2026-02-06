@@ -6,11 +6,16 @@ from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, status
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.openapi.utils import get_openapi
+from fastapi.middleware import Middleware
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from starlette.exceptions import HTTPException
 
-from service.api import wsaa, wsfe, wspci
+from service.api import (ui_frontend, ui_monitoring, wsaa, wsfe,
+                         wsfe_caea_resilience, wspci)
+from service.api.middleware.observability import ObservabilityMiddleware
+from service.caea_resilience.bootstrap import bootstrap_caea_cycles_once
+from service.caea_resilience.db import init_db
 from service.controllers.readiness_health_controller import \
     readiness_health_check
 from service.utils.afip_token_scheduler import start_scheduler, stop_scheduler
@@ -20,14 +25,22 @@ load_dotenv(override=False)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    init_db()
+    await bootstrap_caea_cycles_once()
     start_scheduler()
     yield
     stop_scheduler()
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(
+    lifespan=lifespan,
+    middleware=[Middleware(ObservabilityMiddleware)],
+)
 app.include_router(wsaa.router)
 app.include_router(wsfe.router)
+app.include_router(wsfe_caea_resilience.router)
 app.include_router(wspci.router)
+app.include_router(ui_monitoring.router)
+app.include_router(ui_frontend.router)
 
 # ===================
 # == HEALTH CHECKS ==

@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AFRelay Logs</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/monitor/styles.css">
+</head>
+<body>
+  <main class="layout">
+    <header class="topbar">
+      <div>
+        <h1>AFRelay Logs</h1>
+        <p>Dedicated logs explorer</p>
+      </div>
+      <div class="topbar-actions">
+        <a class="btn-link" href="/monitor/" target="_blank" rel="noopener noreferrer">Open Dashboard</a>
+      </div>
+    </header>
+
+    <section class="card controls">
+      <div class="control-row">
+        <label for="jwtToken">JWT</label>
+        <input id="jwtToken" type="password" placeholder="Bearer secret">
+      </div>
+      <div class="control-row">
+        <label for="filterService">Service</label>
+        <select id="filterService">
+          <option value="">All</option>
+          <option value="wsfe">WSFE</option>
+          <option value="wsaa">WSAA</option>
+          <option value="wspci">WSPCI</option>
+          <option value="ui">UI</option>
+          <option value="health">Health</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div class="control-row">
+        <label for="filterStatus">Status</label>
+        <select id="filterStatus">
+          <option value="">All</option>
+          <option value="ok">OK</option>
+          <option value="error">Error</option>
+        </select>
+      </div>
+      <div class="control-row">
+        <label for="logEndpointFilter">Path contains</label>
+        <input id="logEndpointFilter" type="text" placeholder="/wsfe">
+      </div>
+      <div class="control-row">
+        <label for="logErrorFilter">Error type</label>
+        <input id="logErrorFilter" type="text" placeholder="HTTP Error">
+      </div>
+      <button id="saveTokenBtn" type="button">Save JWT</button>
+      <button id="refreshBtn" type="button">Refresh</button>
+    </section>
+
+    <section class="card">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Method</th>
+              <th>Path</th>
+              <th>Status</th>
+              <th>ms</th>
+              <th>Service</th>
+              <th>Error</th>
+              <th>CUIT</th>
+              <th>Trace</th>
+            </tr>
+          </thead>
+          <tbody id="logsTable"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+  <script src="/monitor/logs.js"></script>
+</body>
+</html>

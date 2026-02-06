@@ -7,3 +7,8 @@ class WsfeAuthRequest(BaseModel):
 
 class WsfeCondicionIvaReceptorRequest(WsfeAuthRequest):
     ClaseCmp: str | None = None
+
+
+class WsfeCotizacionRequest(WsfeAuthRequest):
+    MonId: str
+    FchCotiz: str | None = None

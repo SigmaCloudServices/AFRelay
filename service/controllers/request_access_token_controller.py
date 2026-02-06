@@ -1,4 +1,6 @@
 from config.paths import get_as_bytes
+from service.observability.collector import (emit_domain_event,
+                                             refresh_token_state_from_files)
 from service.crypto.sign import sign_login_ticket_request
 from service.soap_client.async_client import wsaa_client
 from service.soap_client.wsaa import consult_afip_wsaa
@@ -12,6 +14,12 @@ from service.xml_management.xml_builder import (
 async def generate_afip_access_token() -> dict:
 
     logger.info("Generating a new access token...")
+    emit_domain_event(
+        event_type="token_renewal",
+        service="wsaa",
+        status="started",
+        entity_key="loginTicketResponse.xml",
+    )
 
     root = build_login_ticket_request(generate_ntp_timestamp)
     save_xml(root, "loginTicketRequest.xml")
@@ -36,6 +44,13 @@ async def generate_afip_access_token() -> dict:
 
     if login_ticket_response["status"] == "success":
         parse_and_save_loginticketresponse(login_ticket_response["response"], save_xml)
+        refresh_token_state_from_files()
+        emit_domain_event(
+            event_type="token_renewal",
+            service="wsaa",
+            status="success",
+            entity_key="loginTicketResponse.xml",
+        )
     
         logger.info("Token generated successfully.")
         return {
@@ -44,6 +59,13 @@ async def generate_afip_access_token() -> dict:
 
     else:
         logger.error("Failed to generate access token.")
+        emit_domain_event(
+            event_type="token_renewal",
+            service="wsaa",
+            status="error",
+            entity_key="loginTicketResponse.xml",
+            error_type="token_generation_failed",
+        )
         return {
             "status" : "error generating access token."
             }

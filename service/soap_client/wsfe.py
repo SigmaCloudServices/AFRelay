@@ -7,6 +7,7 @@ from tenacity import (before_sleep_log, retry, retry_if_exception_type,
 from zeep.exceptions import Fault, TransportError, XMLSyntaxError
 from zeep.helpers import serialize_object
 
+from service.observability.collector import emit_domain_event
 from service.soap_client.async_client import WSFEClientManager
 from service.soap_client.format_error import build_error_response
 from service.soap_client.wsdl.wsdl_manager import get_wsfe_wsdl
@@ -28,6 +29,12 @@ async def consult_afip_wsfe(make_request, METHOD: str) -> dict:
         # Zeep returns an object of type '<class 'zeep.objects.[service response]'>'.
         # To work with the returned data, this object needs to be converted into a dictionary using serialize_object().
         afip_response = serialize_object(afip_response)
+        emit_domain_event(
+            event_type="soap_call",
+            service="wsfe",
+            status="success",
+            entity_key=METHOD,
+        )
 
         return {
                 "status" : "success",
@@ -35,9 +42,23 @@ async def consult_afip_wsfe(make_request, METHOD: str) -> dict:
                 }
     
     except (httpx.ConnectError, httpx.TimeoutException) as e:
+        emit_domain_event(
+            event_type="soap_call",
+            service="wsfe",
+            status="error",
+            entity_key=METHOD,
+            error_type="Network error",
+        )
         return build_error_response(METHOD, "Network error", str(e))
     
     except TransportError as e:
+        emit_domain_event(
+            event_type="soap_call",
+            service="wsfe",
+            status="error",
+            entity_key=METHOD,
+            error_type="HTTP Error",
+        )
         return build_error_response(METHOD, "HTTP Error", str(e))
 
     except Fault as e:
@@ -46,13 +67,34 @@ async def consult_afip_wsfe(make_request, METHOD: str) -> dict:
         # SOAP Fault originates from Zeep or the remote service, not from this layer.
         
         logger.debug(f"SOAP FAULT in {METHOD}: {e}")
+        emit_domain_event(
+            event_type="soap_call",
+            service="wsfe",
+            status="error",
+            entity_key=METHOD,
+            error_type="SOAPFault",
+        )
         return build_error_response(METHOD, "SOAPFault", str(e))
     
     except XMLSyntaxError as e:
+        emit_domain_event(
+            event_type="soap_call",
+            service="wsfe",
+            status="error",
+            entity_key=METHOD,
+            error_type="Invalid AFIP response",
+        )
         return build_error_response(METHOD, "Invalid AFIP response", str(e))
 
     except Exception as e:
         logger.error(f"General exception in {METHOD}: {e}")
+        emit_domain_event(
+            event_type="soap_call",
+            service="wsfe",
+            status="error",
+            entity_key=METHOD,
+            error_type="unknown",
+        )
         return build_error_response(METHOD, "unknown", str(e))
 
 

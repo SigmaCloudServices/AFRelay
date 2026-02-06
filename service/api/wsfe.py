@@ -6,7 +6,8 @@ from service.api.models.wsfe_caea import (
     WsfeCaeaPeriodoOrdenRequest, WsfeCaeaRegInformativoRequest,
     WsfeCaeaSinMovimientoConsultarRequest, WsfeCaeaSinMovimientoRequest)
 from service.api.models.wsfe_params import (WsfeAuthRequest,
-                                            WsfeCondicionIvaReceptorRequest)
+                                            WsfeCondicionIvaReceptorRequest,
+                                            WsfeCotizacionRequest)
 from service.controllers.consult_invoice_controller import \
     consult_specific_invoice
 from service.controllers.request_invoice_controller import \
@@ -17,9 +18,10 @@ from service.controllers.wsfe_caea_controller import (
     caea_consultar, caea_reg_informativo, caea_sin_movimiento_consultar,
     caea_sin_movimiento_informar, caea_solicitar)
 from service.controllers.wsfe_params_controller import (
-    get_condicion_iva_receptor, get_max_records_per_request, get_puntos_venta,
-    get_types_cbte, get_types_doc, get_types_iva, get_types_monedas,
-    get_types_tributos)
+    get_actividades, get_condicion_iva_receptor, get_cotizacion,
+    get_max_records_per_request, get_puntos_venta, get_types_cbte,
+    get_types_concepto, get_types_doc, get_types_iva, get_types_monedas,
+    get_types_opcional, get_types_paises, get_types_tributos)
 from service.utils.jwt_validator import verify_token
 from service.utils.logger import logger
 
@@ -143,6 +145,61 @@ async def puntos_venta(comp_info: WsfeAuthRequest, jwt = Depends(verify_token)) 
 
     comp_info = comp_info.model_dump(by_alias=True, exclude_none=True)
     result = await get_puntos_venta(comp_info)
+
+    return result
+
+
+@router.post("/wsfe/params/cotizacion")
+async def cotizacion(comp_info: WsfeCotizacionRequest, jwt = Depends(verify_token)) -> dict:
+
+    logger.info("Received request to fetch WSFE currency quote at /wsfe/params/cotizacion")
+
+    comp_info = comp_info.model_dump(by_alias=True, exclude_none=True)
+    result = await get_cotizacion(comp_info)
+
+    return result
+
+
+@router.post("/wsfe/params/types-concepto")
+async def types_concepto(comp_info: WsfeAuthRequest, jwt = Depends(verify_token)) -> dict:
+
+    logger.info("Received request to fetch WSFE concept types at /wsfe/params/types-concepto")
+
+    comp_info = comp_info.model_dump(by_alias=True, exclude_none=True)
+    result = await get_types_concepto(comp_info)
+
+    return result
+
+
+@router.post("/wsfe/params/types-opcional")
+async def types_opcional(comp_info: WsfeAuthRequest, jwt = Depends(verify_token)) -> dict:
+
+    logger.info("Received request to fetch WSFE optional types at /wsfe/params/types-opcional")
+
+    comp_info = comp_info.model_dump(by_alias=True, exclude_none=True)
+    result = await get_types_opcional(comp_info)
+
+    return result
+
+
+@router.post("/wsfe/params/types-paises")
+async def types_paises(comp_info: WsfeAuthRequest, jwt = Depends(verify_token)) -> dict:
+
+    logger.info("Received request to fetch WSFE country types at /wsfe/params/types-paises")
+
+    comp_info = comp_info.model_dump(by_alias=True, exclude_none=True)
+    result = await get_types_paises(comp_info)
+
+    return result
+
+
+@router.post("/wsfe/params/actividades")
+async def actividades(comp_info: WsfeAuthRequest, jwt = Depends(verify_token)) -> dict:
+
+    logger.info("Received request to fetch WSFE activities at /wsfe/params/actividades")
+
+    comp_info = comp_info.model_dump(by_alias=True, exclude_none=True)
+    result = await get_actividades(comp_info)
 
     return result
 

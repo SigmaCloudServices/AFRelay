@@ -2,7 +2,7 @@ from unittest.mock import MagicMock
 
 from service.xml_management.xml_builder import (
     build_login_ticket_request, extract_token_and_sign_from_xml, is_expired,
-    parse_and_save_loginticketresponse, xml_exists)
+    is_expiring_soon, parse_and_save_loginticketresponse, xml_exists)
 
 
 def test_build_login_ticket_request():
@@ -63,6 +63,32 @@ def test_loginTicketRequest_is_expired():
     
     expired = is_expired("loginTicketRequest.xml", fake_time_provider)
     assert expired == False
+
+
+def test_loginTicketResponse_is_expiring_soon_true():
+
+    def fake_time_provider():
+        return (
+            1767807000,
+            "2026-01-07T17:30:00Z",
+            "2026-01-07T17:40:00Z",
+        )
+
+    expiring = is_expiring_soon("loginTicketResponse.xml", fake_time_provider, renew_before_minutes=15)
+    assert expiring is True
+
+
+def test_loginTicketResponse_is_expiring_soon_false():
+
+    def fake_time_provider():
+        return (
+            1767796200,
+            "2026-01-07T14:30:00Z",
+            "2026-01-07T14:40:00Z",
+        )
+
+    expiring = is_expiring_soon("loginTicketResponse.xml", fake_time_provider, renew_before_minutes=15)
+    assert expiring is False
 
 def test_loginTicketRequest_exists():
 

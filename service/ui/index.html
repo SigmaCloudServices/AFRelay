@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AFRelay Monitor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/monitor/styles.css">
+</head>
+<body>
+  <div class="bg-shape bg-shape-a"></div>
+  <div class="bg-shape bg-shape-b"></div>
+  <main class="layout">
+    <header class="topbar">
+      <div>
+        <h1>AFRelay Monitor</h1>
+        <p>Live status, logs, and domain events</p>
+      </div>
+      <div class="topbar-actions">
+        <a class="btn-link" href="/monitor/logs" target="_blank" rel="noopener noreferrer">Open Logs Window</a>
+      </div>
+      <div class="auth-box">
+        <label for="jwtToken">JWT</label>
+        <input id="jwtToken" type="password" placeholder="Bearer secret">
+        <button id="saveTokenBtn" type="button">Save</button>
+      </div>
+    </header>
+
+    <section class="card tabs">
+      <button type="button" class="tab-btn active" data-tab="overview">Overview</button>
+      <button type="button" class="tab-btn" data-tab="logs">Logs & Events</button>
+      <button type="button" class="tab-btn" data-tab="caea">CAEA</button>
+      <button type="button" class="tab-btn" data-tab="operations">Operations</button>
+    </section>
+
+    <div class="tab-panel active" data-panel="overview">
+      <section class="grid cards">
+        <article class="card">
+          <h2>Traffic (60m)</h2>
+          <p class="metric" id="metricRequests">-</p>
+          <p class="submetric">Errors: <span id="metricErrors">-</span></p>
+        </article>
+        <article class="card">
+          <h2>Latency</h2>
+          <p class="metric" id="metricP95">-</p>
+          <p class="submetric">Avg: <span id="metricAvg">-</span></p>
+        </article>
+        <article class="card">
+          <h2>WSAA Token</h2>
+          <p class="metric" id="wsaaTokenStatus">-</p>
+          <p class="submetric" id="wsaaTokenExpiry">-</p>
+        </article>
+        <article class="card">
+          <h2>WSPCI Token</h2>
+          <p class="metric" id="wspciTokenStatus">-</p>
+          <p class="submetric" id="wspciTokenExpiry">-</p>
+        </article>
+      </section>
+
+      <section class="card controls">
+        <div class="control-row">
+          <label for="filterService">Service</label>
+          <select id="filterService">
+            <option value="">All</option>
+            <option value="wsfe">WSFE</option>
+            <option value="wsaa">WSAA</option>
+            <option value="wspci">WSPCI</option>
+            <option value="ui">UI</option>
+            <option value="health">Health</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div class="control-row">
+          <label for="filterStatus">Status</label>
+          <select id="filterStatus">
+            <option value="">All</option>
+            <option value="ok">OK</option>
+            <option value="error">Error</option>
+          </select>
+        </div>
+        <div class="control-row">
+          <label for="windowMinutes">Window</label>
+          <select id="windowMinutes">
+            <option value="15">15m</option>
+            <option value="60" selected>60m</option>
+            <option value="180">3h</option>
+            <option value="720">12h</option>
+            <option value="1440">24h</option>
+          </select>
+        </div>
+        <button id="applyFiltersBtn" type="button">Apply Filters</button>
+      </section>
+
+      <section class="grid two-cols">
+        <article class="card">
+          <h2>Traffic Trend</h2>
+          <div id="trafficSparkline" class="sparkline"></div>
+        </article>
+        <article class="card">
+          <h2>Error Trend</h2>
+          <div id="errorSparkline" class="sparkline"></div>
+        </article>
+      </section>
+
+      <section class="grid two-cols">
+        <article class="card">
+          <h2>Error Signatures (60m)</h2>
+          <ul class="list" id="errorsList"></ul>
+        </article>
+        <article class="card">
+          <h2>Active Alerts</h2>
+          <ul class="list" id="alertsList"></ul>
+        </article>
+      </section>
+    </div>
+
+    <div class="tab-panel" data-panel="logs">
+      <section class="card controls">
+        <div class="control-row grow-2">
+          <label for="logEndpointFilter">Log Path Contains</label>
+          <input id="logEndpointFilter" type="text" placeholder="/wsfe/invoices">
+        </div>
+        <div class="control-row">
+          <label for="logErrorFilter">Error Type</label>
+          <input id="logErrorFilter" type="text" placeholder="HTTP Error">
+        </div>
+        <button id="applyLogFiltersBtn" type="button">Filter Logs</button>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>Recent Logs</h2>
+          <button id="refreshLogsBtn" type="button">Refresh</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Path</th>
+                <th>Status</th>
+                <th>ms</th>
+                <th>Service</th>
+                <th>Error</th>
+                <th>Trace</th>
+              </tr>
+            </thead>
+            <tbody id="logsTable"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>Domain Events</h2>
+          <button id="refreshEventsBtn" type="button">Refresh</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Service</th>
+                <th>Error</th>
+                <th>Trace</th>
+              </tr>
+            </thead>
+            <tbody id="eventsTable"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <div class="tab-panel" data-panel="caea">
+      <section class="card">
+        <div class="card-head">
+          <h2>CAEA Outbox Queue</h2>
+          <div>
+            <button id="retryQueueBtn" type="button">Retry Pending</button>
+            <button id="refreshQueueBtn" type="button">Refresh Queue</button>
+          </div>
+        </div>
+        <p class="submetric" id="queueSummary">-</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Attempts</th>
+                <th>Next Retry</th>
+                <th>Last Error</th>
+              </tr>
+            </thead>
+            <tbody id="queueTable"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>CAEA Assignments by POS</h2>
+          <button id="refreshAssignmentsBtn" type="button">Refresh Assignments</button>
+        </div>
+        <p class="submetric" id="assignmentsSummary">-</p>
+        <h3>POS List</h3>
+        <ul class="list" id="posList"></ul>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Period</th>
+                <th>Order</th>
+                <th>CUIT</th>
+                <th>POS</th>
+                <th>Type</th>
+                <th>CAEA</th>
+                <th>Range</th>
+                <th>Total</th>
+                <th>Informed</th>
+                <th>Pending</th>
+                <th>Error</th>
+              </tr>
+            </thead>
+            <tbody id="assignmentsTable"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <div class="tab-panel" data-panel="operations">
+      <section class="card">
+        <h2>Operations (60m)</h2>
+        <pre id="operationsJson" class="json-view"></pre>
+      </section>
+      <section class="card">
+        <div class="card-head">
+          <h2>WSFE POS List</h2>
+          <button id="refreshPosParamsBtn" type="button">Load POS</button>
+        </div>
+        <section class="controls">
+          <div class="control-row">
+            <label for="posParamsCuit">CUIT</label>
+            <input id="posParamsCuit" type="text" placeholder="30740253022">
+          </div>
+        </section>
+        <pre id="posParamsJson" class="json-view"></pre>
+      </section>
+      <section class="card">
+        <div class="card-head">
+          <h2>WSFE New Params Snapshot</h2>
+          <button id="refreshWsfeParamsBtn" type="button">Refresh Params</button>
+        </div>
+        <section class="controls">
+          <div class="control-row">
+            <label for="paramsCuit">CUIT</label>
+            <input id="paramsCuit" type="text" placeholder="30740253022">
+          </div>
+          <div class="control-row">
+            <label for="paramsMonId">MonId</label>
+            <input id="paramsMonId" type="text" value="USD">
+          </div>
+          <div class="control-row">
+            <label for="paramsFchCotiz">FchCotiz (YYYYMMDD)</label>
+            <input id="paramsFchCotiz" type="text" placeholder="20260203">
+          </div>
+          <div class="control-row">
+            <label for="paramsPtoVta">PtoVta</label>
+            <input id="paramsPtoVta" type="text" value="1">
+          </div>
+          <div class="control-row">
+            <label for="paramsCbteTipo">CbteTipo</label>
+            <input id="paramsCbteTipo" type="text" value="1">
+          </div>
+          <div class="control-row">
+            <label for="paramsCbteNro">CbteNro (query)</label>
+            <input id="paramsCbteNro" type="text" placeholder="123">
+          </div>
+        </section>
+        <pre id="wsfeParamsJson" class="json-view"></pre>
+      </section>
+    </div>
+  </main>
+  <script src="/monitor/app.js"></script>
+</body>
+</html>

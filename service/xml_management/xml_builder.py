@@ -91,6 +91,37 @@ def is_expired(xml_name: str, time_provider) -> bool:
     else:
         return False
 
+
+def _now_utc_from_provider(time_provider) -> datetime:
+    _, actual_hour, _ = time_provider()
+    if actual_hour:
+        try:
+            return datetime.strptime(str(actual_hour), "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+        except Exception:
+            logger.warning("Invalid NTP timestamp format from provider. Falling back to system UTC.")
+    return datetime.now(timezone.utc)
+
+
+def _expiration_utc(xml_name: str) -> datetime:
+    path = paths.get_afip_paths().base_xml / xml_name
+    tree = etree.parse(path)
+    root = tree.getroot()
+    expiration_time_label = root.find(".//expirationTime")
+    expiration_time_str = expiration_time_label.text
+    return datetime.fromisoformat(expiration_time_str).astimezone(timezone.utc)
+
+
+def is_expiring_soon(xml_name: str, time_provider, renew_before_minutes: int = 15) -> bool:
+    logger.debug(
+        "Running is_expiring_soon() for %s with renew_before_minutes=%s",
+        xml_name,
+        renew_before_minutes,
+    )
+    now_utc = _now_utc_from_provider(time_provider)
+    expiration_utc = _expiration_utc(xml_name)
+    remaining_seconds = (expiration_utc - now_utc).total_seconds()
+    return remaining_seconds <= (renew_before_minutes * 60)
+
 def save_xml(root, xml_name: str) -> None:
     
     path = paths.get_afip_paths().base_xml / xml_name

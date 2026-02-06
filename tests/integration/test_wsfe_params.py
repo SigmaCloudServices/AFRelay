@@ -129,6 +129,86 @@ SOAP_RESPONSES = {
   </soap-env:Body>
 </soap-env:Envelope>
 """,
+    "/wsfe/params/cotizacion": """<?xml version="1.0" encoding="utf-8"?>
+<soap-env:Envelope xmlns:soap-env="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ar="http://ar.gov.afip.dif.FEV1/">
+  <soap-env:Body>
+    <ar:FEParamGetCotizacionResponse>
+      <ar:FEParamGetCotizacionResult>
+        <ar:ResultGet>
+          <ar:MonId>USD</ar:MonId>
+          <ar:MonCotiz>1050.25</ar:MonCotiz>
+          <ar:FchCotiz>20260203</ar:FchCotiz>
+        </ar:ResultGet>
+      </ar:FEParamGetCotizacionResult>
+    </ar:FEParamGetCotizacionResponse>
+  </soap-env:Body>
+</soap-env:Envelope>
+""",
+    "/wsfe/params/types-concepto": """<?xml version="1.0" encoding="utf-8"?>
+<soap-env:Envelope xmlns:soap-env="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ar="http://ar.gov.afip.dif.FEV1/">
+  <soap-env:Body>
+    <ar:FEParamGetTiposConceptoResponse>
+      <ar:FEParamGetTiposConceptoResult>
+        <ar:ResultGet>
+          <ar:ConceptoTipo>
+            <ar:Id>1</ar:Id>
+            <ar:Desc>Productos</ar:Desc>
+          </ar:ConceptoTipo>
+        </ar:ResultGet>
+      </ar:FEParamGetTiposConceptoResult>
+    </ar:FEParamGetTiposConceptoResponse>
+  </soap-env:Body>
+</soap-env:Envelope>
+""",
+    "/wsfe/params/types-opcional": """<?xml version="1.0" encoding="utf-8"?>
+<soap-env:Envelope xmlns:soap-env="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ar="http://ar.gov.afip.dif.FEV1/">
+  <soap-env:Body>
+    <ar:FEParamGetTiposOpcionalResponse>
+      <ar:FEParamGetTiposOpcionalResult>
+        <ar:ResultGet>
+          <ar:OpcionalTipo>
+            <ar:Id>2101</ar:Id>
+            <ar:Desc>CBU</ar:Desc>
+          </ar:OpcionalTipo>
+        </ar:ResultGet>
+      </ar:FEParamGetTiposOpcionalResult>
+    </ar:FEParamGetTiposOpcionalResponse>
+  </soap-env:Body>
+</soap-env:Envelope>
+""",
+    "/wsfe/params/types-paises": """<?xml version="1.0" encoding="utf-8"?>
+<soap-env:Envelope xmlns:soap-env="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ar="http://ar.gov.afip.dif.FEV1/">
+  <soap-env:Body>
+    <ar:FEParamGetTiposPaisesResponse>
+      <ar:FEParamGetTiposPaisesResult>
+        <ar:ResultGet>
+          <ar:PaisTipo>
+            <ar:Id>200</ar:Id>
+            <ar:Desc>Argentina</ar:Desc>
+          </ar:PaisTipo>
+        </ar:ResultGet>
+      </ar:FEParamGetTiposPaisesResult>
+    </ar:FEParamGetTiposPaisesResponse>
+  </soap-env:Body>
+</soap-env:Envelope>
+""",
+    "/wsfe/params/actividades": """<?xml version="1.0" encoding="utf-8"?>
+<soap-env:Envelope xmlns:soap-env="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ar="http://ar.gov.afip.dif.FEV1/">
+  <soap-env:Body>
+    <ar:FEParamGetActividadesResponse>
+      <ar:FEParamGetActividadesResult>
+        <ar:ResultGet>
+          <ar:ActividadesTipo>
+            <ar:Id>620200</ar:Id>
+            <ar:Orden>1</ar:Orden>
+            <ar:Desc>Servicios de consultoria informatica</ar:Desc>
+          </ar:ActividadesTipo>
+        </ar:ResultGet>
+      </ar:FEParamGetActividadesResult>
+    </ar:FEParamGetActividadesResponse>
+  </soap-env:Body>
+</soap-env:Envelope>
+""",
 }
 
 
@@ -142,6 +222,9 @@ async def test_wsfe_params_success(client: AsyncClient, wsfe_httpserver_fixed_po
     payload = {"Cuit": 30740253022}
     if endpoint == "/wsfe/params/condicion-iva-receptor":
         payload["ClaseCmp"] = "A/M/C"
+    if endpoint == "/wsfe/params/cotizacion":
+        payload["MonId"] = "USD"
+        payload["FchCotiz"] = "20260203"
 
     resp = await client.post(endpoint, json=payload)
 

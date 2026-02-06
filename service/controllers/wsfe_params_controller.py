@@ -62,3 +62,33 @@ async def get_condicion_iva_receptor(comp_info: dict) -> dict:
 async def get_puntos_venta(comp_info: dict) -> dict:
     logger.info("Consulting WSFE sale points...")
     return await _request_with_auth("FEParamGetPtosVenta", comp_info["Cuit"])
+
+
+async def get_cotizacion(comp_info: dict) -> dict:
+    logger.info("Consulting WSFE currency quote...")
+    return await _request_with_auth(
+        "FEParamGetCotizacion",
+        comp_info["Cuit"],
+        comp_info["MonId"],
+        comp_info.get("FchCotiz"),
+    )
+
+
+async def get_types_concepto(comp_info: dict) -> dict:
+    logger.info("Consulting WSFE concept types...")
+    return await _request_with_auth("FEParamGetTiposConcepto", comp_info["Cuit"])
+
+
+async def get_types_opcional(comp_info: dict) -> dict:
+    logger.info("Consulting WSFE optional types...")
+    return await _request_with_auth("FEParamGetTiposOpcional", comp_info["Cuit"])
+
+
+async def get_types_paises(comp_info: dict) -> dict:
+    logger.info("Consulting WSFE country types...")
+    return await _request_with_auth("FEParamGetTiposPaises", comp_info["Cuit"])
+
+
+async def get_actividades(comp_info: dict) -> dict:
+    logger.info("Consulting WSFE issuer activities...")
+    return await _request_with_auth("FEParamGetActividades", comp_info["Cuit"])
