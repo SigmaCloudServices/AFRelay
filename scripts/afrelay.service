@@ -1,0 +1,17 @@
+[Unit]
+Description=AFRelay API Service
+After=network.target
+
+[Service]
+Type=simple
+User=afrelay
+Group=afrelay
+WorkingDirectory=%h/afrelay
+EnvironmentFile=-%h/afrelay/.env
+Environment="PATH=%h/afrelay-venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ExecStart=%h/afrelay/scripts/run_server.sh
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
