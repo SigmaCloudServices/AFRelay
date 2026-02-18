@@ -31,5 +31,9 @@ __pycache__/
 
 # Ignore .coverage file
 .coverage
+
+# Ignore runtime logs
+logs/*.log
+
 # Ignore local runtime state DB
 service/state/afrelay_state.db
