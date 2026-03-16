@@ -1,0 +1,138 @@
+{% extends "admin_base.html" %}
+{% block title %}Certificados — {{ tenant.name }}{% endblock %}
+{% block content %}
+<div class="d-flex align-items-center gap-3 mb-4">
+  <a href="/portal/admin/tenants/{{ tenant.id }}" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-arrow-left"></i>
+  </a>
+  <h4 class="fw-bold mb-0">Certificados — {{ tenant.name }}</h4>
+</div>
+
+<div class="row g-3">
+  <div class="col-md-5">
+    <!-- Generate CSR -->
+    <div class="card mb-3">
+      <div class="card-header fw-semibold">
+        <i class="bi bi-plus-circle me-2 text-primary"></i>Generar Clave + CSR
+      </div>
+      <div class="card-body">
+        <form method="post" action="/portal/admin/tenants/{{ tenant.id }}/certs/generate-csr">
+          <div class="mb-3">
+            <label class="form-label small">Servicio</label>
+            <select name="service" class="form-select form-select-sm">
+              <option value="wsfe">WSFE (Facturación)</option>
+              <option value="wspci">WSPCI (Padrón)</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small">Common Name (CN)</label>
+            <input type="text" name="common_name" class="form-control form-control-sm"
+              value="{{ tenant.name }}" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small">Organización (O)</label>
+            <input type="text" name="organization" class="form-control form-control-sm"
+              value="{{ tenant.name }}" required>
+          </div>
+          <div class="row g-2 mb-3">
+            <div class="col-6">
+              <label class="form-label small">País</label>
+              <input type="text" name="country" class="form-control form-control-sm" value="AR" maxlength="2" required>
+            </div>
+            <div class="col-6">
+              <label class="form-label small">CUIT</label>
+              <input type="text" name="cuit" class="form-control form-control-sm"
+                value="{{ tenant.cuit }}" required>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm w-100">
+            <i class="bi bi-key me-1"></i>Generar CSR
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Upload Cert -->
+    {% if pending_cert %}
+    <div class="card">
+      <div class="card-header fw-semibold">
+        <i class="bi bi-upload me-2 text-warning"></i>Cargar Certificado AFIP
+      </div>
+      <div class="card-body">
+        <p class="small text-muted">Pegá el certificado otorgado por AFIP para el CSR pendiente (servicio: <strong>{{ pending_cert.service }}</strong>).</p>
+        <form method="post" action="/portal/admin/tenants/{{ tenant.id }}/certs/{{ pending_cert.id }}/upload">
+          <div class="mb-3">
+            <textarea name="cert_pem" class="form-control font-monospace" rows="8"
+              placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----" required></textarea>
+          </div>
+          <button type="submit" class="btn btn-warning btn-sm w-100">
+            <i class="bi bi-cloud-upload me-1"></i>Cargar y Activar
+          </button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="col-md-7">
+    <!-- CSR display -->
+    {% if new_csr %}
+    <div class="card mb-3 border-primary">
+      <div class="card-header bg-primary bg-opacity-25 fw-semibold">
+        <i class="bi bi-file-text me-2"></i>CSR Generado — Enviá esto a AFIP
+      </div>
+      <div class="card-body">
+        <textarea class="form-control font-monospace small" rows="12" readonly>{{ new_csr }}</textarea>
+        <small class="text-muted d-block mt-2">
+          Copiá este CSR y presentalo en el portal de AFIP para obtener el certificado digital.
+        </small>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Certs list -->
+    <div class="card">
+      <div class="card-header fw-semibold">Certificados Registrados</div>
+      <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead class="table-dark">
+            <tr><th>ID</th><th>Servicio</th><th>CN</th><th>Estado</th><th>Expira</th><th></th></tr>
+          </thead>
+          <tbody>
+            {% for c in certs %}
+            <tr>
+              <td class="text-muted">{{ c.id }}</td>
+              <td><span class="badge bg-secondary">{{ c.service }}</span></td>
+              <td class="small">{{ c.common_name }}</td>
+              <td>
+                {% if c.status == 'active' %}
+                  <span class="badge bg-success">Activo</span>
+                {% elif c.status == 'ready' %}
+                  <span class="badge bg-info">Listo</span>
+                {% elif c.status == 'pending_cert' %}
+                  <span class="badge bg-warning text-dark">Sin cert</span>
+                {% else %}
+                  <span class="badge bg-secondary">{{ c.status }}</span>
+                {% endif %}
+              </td>
+              <td class="small text-muted">{{ c.cert_expires_at[:10] if c.cert_expires_at else '—' }}</td>
+              <td>
+                {% if c.status == 'ready' and not c.is_active %}
+                  <form method="post" action="/portal/admin/tenants/{{ tenant.id }}/certs/{{ c.id }}/activate"
+                    class="d-inline">
+                    <button type="submit" class="btn btn-xs btn-success">Activar</button>
+                  </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+            {% if not certs %}
+              <tr><td colspan="6" class="text-center text-muted py-3">Sin certificados</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

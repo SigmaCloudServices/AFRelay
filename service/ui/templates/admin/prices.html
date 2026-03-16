@@ -1,0 +1,39 @@
+{% extends "admin_base.html" %}
+{% block title %}Precios — AFRelay Admin{% endblock %}
+{% block content %}
+<h4 class="fw-bold mb-4"><i class="bi bi-tag-fill me-2 text-warning"></i>Precios de Servicios</h4>
+
+<div class="card">
+  <div class="card-body">
+    <p class="text-muted small mb-3">Configurá el precio por llamada para cada servicio. Los cambios aplican inmediatamente a nuevas llamadas.</p>
+    <form method="post" action="/portal/admin/prices/update">
+      <div class="table-responsive">
+        <table class="table align-middle mb-3">
+          <thead class="table-dark">
+            <tr><th>Servicio</th><th>Descripción</th><th style="width:140px">Precio (USD)</th></tr>
+          </thead>
+          <tbody>
+            {% for p in prices %}
+            <tr>
+              <td><code>{{ p.service_name }}</code></td>
+              <td class="small text-muted">{{ p.description or '—' }}</td>
+              <td>
+                <div class="input-group input-group-sm">
+                  <span class="input-group-text">$</span>
+                  <input type="number" name="price_{{ p.service_name }}"
+                    class="form-control" step="0.0001" min="0"
+                    value="{{ p.price }}">
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <button type="submit" class="btn btn-warning fw-semibold">
+        <i class="bi bi-save me-1"></i>Guardar Cambios
+      </button>
+    </form>
+  </div>
+</div>
+{% endblock %}

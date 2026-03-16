@@ -1,0 +1,110 @@
+{% extends "admin_base.html" %}
+{% block title %}Dashboard — AFRelay Admin{% endblock %}
+{% block content %}
+<h4 class="fw-bold mb-4"><i class="bi bi-speedometer2 me-2 text-warning"></i>Dashboard</h4>
+
+<div class="row g-3 mb-4">
+  <div class="col-sm-6 col-xl-3">
+    <div class="stat-card card">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <p class="text-muted small mb-1">Tenants Activos</p>
+            <h3 class="fw-bold mb-0">{{ stats.active_tenants }}</h3>
+          </div>
+          <i class="bi bi-people-fill fs-2 text-primary opacity-50"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-xl-3">
+    <div class="stat-card card">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <p class="text-muted small mb-1">Balance Total</p>
+            <h3 class="fw-bold mb-0 text-success">${{ "%.2f"|format(stats.total_balance) }}</h3>
+          </div>
+          <i class="bi bi-cash-stack fs-2 text-success opacity-50"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-xl-3">
+    <div class="stat-card card">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <p class="text-muted small mb-1">Llamadas Hoy</p>
+            <h3 class="fw-bold mb-0">{{ stats.calls_today or 0 }}</h3>
+          </div>
+          <i class="bi bi-activity fs-2 text-warning opacity-50"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-xl-3">
+    <div class="stat-card card">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <p class="text-muted small mb-1">Revenue Hoy</p>
+            <h3 class="fw-bold mb-0 text-info">${{ "%.4f"|format(stats.revenue_today or 0) }}</h3>
+          </div>
+          <i class="bi bi-graph-up-arrow fs-2 text-info opacity-50"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span class="fw-semibold">Tenants Recientes</span>
+        <a href="/portal/admin/tenants" class="btn btn-sm btn-outline-primary">Ver todos</a>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover table-sm mb-0">
+          <thead class="table-dark">
+            <tr>
+              <th>Nombre</th><th>CUIT</th><th>Balance</th><th>Estado</th><th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in tenants %}
+            <tr>
+              <td>{{ t.name }}</td>
+              <td><code>{{ t.cuit }}</code></td>
+              <td class="text-{% if t.balance > 0 %}success{% else %}danger{% endif %}">${{ "%.4f"|format(t.balance) }}</td>
+              <td>
+                {% if t.is_active %}
+                  <span class="badge bg-success">Activo</span>
+                {% else %}
+                  <span class="badge bg-secondary">Inactivo</span>
+                {% endif %}
+              </td>
+              <td><a href="/portal/admin/tenants/{{ t.id }}" class="btn btn-xs btn-outline-secondary">Ver</a></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header fw-semibold">Precios de Servicios</div>
+      <div class="list-group list-group-flush">
+        {% for p in prices %}
+        <div class="list-group-item d-flex justify-content-between align-items-center py-2">
+          <small class="font-monospace">{{ p.service_name }}</small>
+          <span class="badge bg-dark border">${{ "%.4f"|format(p.price) }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

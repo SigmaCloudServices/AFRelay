@@ -7,7 +7,7 @@ from service.caea_resilience.db import init_db
 from service.caea_resilience.outbox_worker import process_pending_outbox_jobs
 from service.observability.collector import (get_store,
                                              refresh_token_state_from_files)
-from service.utils.jwt_validator import verify_token
+from service.tenants.auth import verify_admin_api_key
 
 router = APIRouter()
 
@@ -15,7 +15,7 @@ router = APIRouter()
 @router.get("/ui/metrics/summary")
 async def ui_metrics_summary(
     window_minutes: int = Query(default=60, ge=1, le=1440),
-    jwt=Depends(verify_token),
+    _admin=Depends(verify_admin_api_key),
 ) -> dict:
     store = get_store()
     return store.get_summary(window_minutes=window_minutes)
@@ -29,7 +29,7 @@ async def ui_logs(
     status: Literal["ok", "error"] | None = None,
     service: str | None = None,
     error_type: str | None = None,
-    jwt=Depends(verify_token),
+    _admin=Depends(verify_admin_api_key),
 ) -> dict:
     store = get_store()
     return store.list_logs(
@@ -46,14 +46,14 @@ async def ui_logs(
 async def ui_errors(
     window_minutes: int = Query(default=60, ge=1, le=1440),
     group_by: Literal["error_type", "endpoint"] = "error_type",
-    jwt=Depends(verify_token),
+    _admin=Depends(verify_admin_api_key),
 ) -> dict:
     store = get_store()
     return store.get_errors(window_minutes=window_minutes, group_by=group_by)
 
 
 @router.get("/ui/tokens/status")
-async def ui_tokens_status(jwt=Depends(verify_token)) -> dict:
+async def ui_tokens_status(_admin=Depends(verify_admin_api_key)) -> dict:
     refresh_token_state_from_files()
     store = get_store()
     return store.get_token_status()
@@ -62,14 +62,14 @@ async def ui_tokens_status(jwt=Depends(verify_token)) -> dict:
 @router.get("/ui/operations/summary")
 async def ui_operations_summary(
     window_minutes: int = Query(default=60, ge=1, le=1440),
-    jwt=Depends(verify_token),
+    _admin=Depends(verify_admin_api_key),
 ) -> dict:
     store = get_store()
     return store.get_operations_summary(window_minutes=window_minutes)
 
 
 @router.get("/ui/alerts")
-async def ui_alerts(jwt=Depends(verify_token)) -> dict:
+async def ui_alerts(_admin=Depends(verify_admin_api_key)) -> dict:
     refresh_token_state_from_files()
     store = get_store()
     return store.get_alerts()
@@ -82,7 +82,7 @@ async def ui_events(
     service: str | None = None,
     event_type: str | None = None,
     status: Literal["success", "error"] | None = None,
-    jwt=Depends(verify_token),
+    _admin=Depends(verify_admin_api_key),
 ) -> dict:
     store = get_store()
     return store.list_domain_events(
@@ -97,7 +97,7 @@ async def ui_events(
 @router.get("/ui/caea/queue")
 async def ui_caea_queue(
     limit: int = Query(default=200, ge=1, le=1000),
-    jwt=Depends(verify_token),
+    _admin=Depends(verify_admin_api_key),
 ) -> dict:
     init_db()
     items = caea_repo.list_outbox(limit=limit)
@@ -118,7 +118,7 @@ async def ui_caea_queue(
 @router.post("/ui/caea/queue/retry")
 async def ui_caea_queue_retry(
     limit: int = Query(default=30, ge=1, le=200),
-    jwt=Depends(verify_token),
+    _admin=Depends(verify_admin_api_key),
 ) -> dict:
     init_db()
     result = await process_pending_outbox_jobs(limit=limit)
@@ -128,7 +128,7 @@ async def ui_caea_queue_retry(
 @router.get("/ui/caea/assignments")
 async def ui_caea_assignments(
     limit: int = Query(default=200, ge=1, le=1000),
-    jwt=Depends(verify_token),
+    _admin=Depends(verify_admin_api_key),
 ) -> dict:
     init_db()
     items = caea_repo.list_caea_assignments(limit=limit)

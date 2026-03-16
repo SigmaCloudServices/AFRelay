@@ -1,0 +1,56 @@
+{% extends "tenant_base.html" %}
+{% block title %}API Key — AFRelay{% endblock %}
+{% block content %}
+<h4 class="fw-bold mb-4"><i class="bi bi-key-fill me-2 text-warning"></i>API Key</h4>
+
+{% if new_api_key %}
+<div class="alert alert-success border-success">
+  <h6 class="fw-bold"><i class="bi bi-check-circle-fill me-2"></i>Nueva API Key generada</h6>
+  <div class="bg-dark rounded p-3 mt-2 position-relative">
+    <code class="fs-6 user-select-all" id="api-key-value">{{ new_api_key }}</code>
+    <button class="btn btn-sm btn-outline-light position-absolute top-0 end-0 m-2"
+      onclick="navigator.clipboard.writeText(document.getElementById('api-key-value').textContent); this.innerHTML='<i class=\'bi bi-check\'></i>'">
+      <i class="bi bi-clipboard"></i>
+    </button>
+  </div>
+  <div class="mt-2 text-warning small">
+    <i class="bi bi-exclamation-triangle me-1"></i>
+    <strong>Copiá esta clave ahora.</strong> No se volverá a mostrar por razones de seguridad.
+  </div>
+</div>
+{% endif %}
+
+<div class="row g-3">
+  <div class="col-md-8">
+    <div class="card">
+      <div class="card-header fw-semibold">Uso de la API Key</div>
+      <div class="card-body">
+        <p class="text-muted small">Incluí la API key en el header <code>Authorization</code> de cada request:</p>
+        <div class="bg-dark rounded p-3 font-monospace small">
+          Authorization: Bearer {{ tenant.cuit }}_your_api_key_here
+        </div>
+        <hr>
+        <h6 class="fw-semibold mt-3">Ejemplo — Generar Factura</h6>
+        <pre class="bg-dark rounded p-3 small text-light overflow-auto">curl -X POST https://afrelay.example.com/wsfe/invoices \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"Auth": {...}, "FeCAEReq": {...}}'</pre>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card">
+      <div class="card-header fw-semibold">Rotar API Key</div>
+      <div class="card-body">
+        <p class="text-muted small">Generá una nueva API key. La clave actual quedará inválida inmediatamente.</p>
+        <form method="post" action="/portal/api-key/rotate"
+          onsubmit="return confirm('¿Estás seguro? La clave actual quedará inválida.')">
+          <button type="submit" class="btn btn-warning w-100 fw-semibold">
+            <i class="bi bi-arrow-repeat me-2"></i>Rotar API Key
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

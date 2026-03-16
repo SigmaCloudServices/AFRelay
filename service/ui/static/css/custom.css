@@ -1,0 +1,211 @@
+/* ── AFRelay Portal — Dark Theme ──────────────────────────────────────────── */
+
+:root {
+  --bs-body-bg: #0d1117;
+  --bs-body-color: #c9d1d9;
+  --sidebar-bg: #161b22;
+  --card-bg: #161b22;
+  --card-border: #30363d;
+  --accent: #f0b429;
+  --accent-blue: #58a6ff;
+}
+
+body {
+  background-color: var(--bs-body-bg);
+  color: var(--bs-body-color);
+}
+
+/* ── Sidebar ── */
+.sidebar {
+  background-color: var(--sidebar-bg);
+  min-height: calc(100vh - 56px);
+  border-right: 1px solid var(--card-border);
+  padding-top: 1rem !important;
+}
+
+.sidebar .nav-link {
+  color: #8b949e;
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  transition: all 0.15s ease;
+}
+
+.sidebar .nav-link:hover {
+  color: #c9d1d9;
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.sidebar .nav-link.active {
+  color: #fff;
+  background-color: rgba(255, 255, 255, 0.1);
+  font-weight: 600;
+}
+
+/* ── Cards ── */
+.card {
+  background-color: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+}
+
+.card-header {
+  background-color: rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid var(--card-border);
+  padding: 0.75rem 1rem;
+  font-size: 0.9rem;
+}
+
+.stat-card {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+/* ── Login Card ── */
+.login-card {
+  width: 100%;
+  max-width: 420px;
+  background-color: var(--card-bg);
+  border: 1px solid var(--card-border);
+}
+
+/* ── Tables ── */
+.table {
+  color: var(--bs-body-color);
+  --bs-table-bg: transparent;
+  --bs-table-hover-bg: rgba(255, 255, 255, 0.04);
+}
+
+.table-dark {
+  --bs-table-bg: #0d1117;
+  background-color: #0d1117;
+  color: #8b949e;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* ── Forms ── */
+.form-control,
+.form-select {
+  background-color: #0d1117;
+  border-color: var(--card-border);
+  color: var(--bs-body-color);
+}
+
+.form-control:focus,
+.form-select:focus {
+  background-color: #0d1117;
+  border-color: var(--accent-blue);
+  color: var(--bs-body-color);
+  box-shadow: 0 0 0 0.2rem rgba(88, 166, 255, 0.15);
+}
+
+.form-control::placeholder {
+  color: #484f58;
+}
+
+.input-group-text {
+  background-color: #161b22;
+  border-color: var(--card-border);
+  color: #8b949e;
+}
+
+/* ── Navbar ── */
+.navbar {
+  background-color: #0d1117 !important;
+  border-bottom: 1px solid var(--card-border);
+}
+
+/* ── Buttons ── */
+.btn-xs {
+  padding: 0.15rem 0.5rem;
+  font-size: 0.75rem;
+  border-radius: 4px;
+}
+
+/* ── Code ── */
+code {
+  color: #ff7b72;
+  background-color: rgba(240, 246, 252, 0.08);
+  padding: 0.1em 0.3em;
+  border-radius: 4px;
+}
+
+pre code {
+  background: none;
+  padding: 0;
+}
+
+/* ── Modals ── */
+.modal-content {
+  background-color: var(--card-bg);
+  border: 1px solid var(--card-border);
+}
+
+.modal-header {
+  border-bottom: 1px solid var(--card-border);
+}
+
+.modal-footer {
+  border-top: 1px solid var(--card-border);
+}
+
+/* ── List groups ── */
+.list-group-item {
+  background-color: transparent;
+  border-color: var(--card-border);
+  color: var(--bs-body-color);
+}
+
+/* ── Badges ── */
+.badge.bg-dark {
+  background-color: #21262d !important;
+  color: #c9d1d9;
+}
+
+/* ── Alert overrides ── */
+.alert-success {
+  background-color: rgba(63, 185, 80, 0.1);
+  border-color: rgba(63, 185, 80, 0.3);
+  color: #3fb950;
+}
+
+.alert-danger {
+  background-color: rgba(248, 81, 73, 0.1);
+  border-color: rgba(248, 81, 73, 0.3);
+  color: #f85149;
+}
+
+.alert-warning {
+  background-color: rgba(210, 153, 34, 0.1);
+  border-color: rgba(210, 153, 34, 0.3);
+  color: #d29922;
+}
+
+.alert-info {
+  background-color: rgba(88, 166, 255, 0.1);
+  border-color: rgba(88, 166, 255, 0.3);
+  color: #58a6ff;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track { background: var(--bs-body-bg); }
+::-webkit-scrollbar-thumb {
+  background: #30363d;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover { background: #484f58; }
+
+/* ── HTMX loading indicator ── */
+.htmx-indicator { opacity: 0; transition: opacity 200ms ease-in; }
+.htmx-request .htmx-indicator { opacity: 1; }
+.htmx-request.htmx-indicator { opacity: 1; }

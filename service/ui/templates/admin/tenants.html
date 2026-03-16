@@ -1,0 +1,89 @@
+{% extends "admin_base.html" %}
+{% block title %}Tenants — AFRelay Admin{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h4 class="fw-bold mb-0"><i class="bi bi-people-fill me-2 text-primary"></i>Tenants</h4>
+  <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createModal">
+    <i class="bi bi-plus-lg me-1"></i>Nuevo Tenant
+  </button>
+</div>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead class="table-dark">
+        <tr>
+          <th>ID</th><th>Nombre</th><th>Email</th><th>CUIT</th>
+          <th>Balance</th><th>Estado</th><th>Creado</th><th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in tenants %}
+        <tr>
+          <td class="text-muted">{{ t.id }}</td>
+          <td class="fw-semibold">{{ t.name }}</td>
+          <td>{{ t.email }}</td>
+          <td><code>{{ t.cuit }}</code></td>
+          <td class="text-{% if t.balance > 0 %}success{% else %}danger{% endif %} fw-semibold">
+            ${{ "%.4f"|format(t.balance) }}
+          </td>
+          <td>
+            {% if t.is_active %}
+              <span class="badge bg-success">Activo</span>
+            {% else %}
+              <span class="badge bg-secondary">Inactivo</span>
+            {% endif %}
+          </td>
+          <td class="text-muted small">{{ t.created_at[:10] if t.created_at else '' }}</td>
+          <td>
+            <a href="/portal/admin/tenants/{{ t.id }}" class="btn btn-sm btn-outline-primary">
+              <i class="bi bi-eye"></i>
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Create Modal -->
+<div class="modal fade" id="createModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" action="/portal/admin/tenants/create">
+        <div class="modal-header">
+          <h5 class="modal-title">Nuevo Tenant</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">Nombre</label>
+            <input type="text" name="name" class="form-control" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Email</label>
+            <input type="email" name="email" class="form-control" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Contraseña</label>
+            <input type="password" name="password" class="form-control" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">CUIT</label>
+            <input type="text" name="cuit" class="form-control" placeholder="20-12345678-9" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Notas (opcional)</label>
+            <textarea name="notes" class="form-control" rows="2"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Crear Tenant</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

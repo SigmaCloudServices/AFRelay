@@ -1,0 +1,133 @@
+{% extends "tenant_base.html" %}
+{% block title %}Dashboard — AFRelay{% endblock %}
+{% block content %}
+<h4 class="fw-bold mb-4"><i class="bi bi-house-fill me-2 text-primary"></i>Dashboard</h4>
+
+<div class="row g-3 mb-4">
+  <div class="col-sm-6 col-xl-4">
+    <div class="stat-card card">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <p class="text-muted small mb-1">Balance Disponible</p>
+            <h3 class="fw-bold mb-0 text-{% if tenant.balance > 0 %}success{% else %}danger{% endif %}">
+              ${{ "%.4f"|format(tenant.balance) }}
+            </h3>
+          </div>
+          <i class="bi bi-wallet2 fs-2 text-success opacity-50"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-xl-4">
+    <div class="stat-card card">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <p class="text-muted small mb-1">Certificados Activos</p>
+            <h3 class="fw-bold mb-0">{{ active_certs }}</h3>
+          </div>
+          <i class="bi bi-file-earmark-lock-fill fs-2 text-info opacity-50"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-xl-4">
+    <div class="stat-card card">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <p class="text-muted small mb-1">Llamadas del Mes</p>
+            <h3 class="fw-bold mb-0">{{ calls_month or 0 }}</h3>
+          </div>
+          <i class="bi bi-activity fs-2 text-warning opacity-50"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-header fw-semibold">
+        <i class="bi bi-lightning-charge me-2 text-warning"></i>Token WSFE
+      </div>
+      <div class="card-body">
+        {% if wsfe_token %}
+          <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-check-circle-fill text-success fs-5"></i>
+            <div>
+              <div class="small fw-semibold">Token válido</div>
+              <div class="text-muted small">Expira: {{ wsfe_token.expires_at[:19] if wsfe_token.expires_at else '—' }}</div>
+            </div>
+          </div>
+        {% else %}
+          <div class="d-flex align-items-center gap-2 text-warning">
+            <i class="bi bi-exclamation-triangle-fill fs-5"></i>
+            <span class="small">Sin token WSFE. Renovar.</span>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-header fw-semibold">
+        <i class="bi bi-person-badge me-2 text-info"></i>Token WSPCI
+      </div>
+      <div class="card-body">
+        {% if wspci_token %}
+          <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-check-circle-fill text-success fs-5"></i>
+            <div>
+              <div class="small fw-semibold">Token válido</div>
+              <div class="text-muted small">Expira: {{ wspci_token.expires_at[:19] if wspci_token.expires_at else '—' }}</div>
+            </div>
+          </div>
+        {% else %}
+          <div class="d-flex align-items-center gap-2 text-muted">
+            <i class="bi bi-dash-circle fs-5"></i>
+            <span class="small">Sin token WSPCI.</span>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card mt-3">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span class="fw-semibold">Últimas Transacciones</span>
+    <a href="/portal/transactions" class="btn btn-sm btn-outline-secondary">Ver todas</a>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm mb-0">
+      <thead class="table-dark">
+        <tr><th>Tipo</th><th>Monto</th><th>Servicio</th><th>Fecha</th></tr>
+      </thead>
+      <tbody>
+        {% for tx in recent_transactions %}
+        <tr>
+          <td>
+            {% if tx.type == 'credit' %}
+              <span class="badge bg-success">Crédito</span>
+            {% else %}
+              <span class="badge bg-danger">Débito</span>
+            {% endif %}
+          </td>
+          <td class="text-{% if tx.type == 'credit' %}success{% else %}danger{% endif %} fw-semibold">
+            {{ '+' if tx.type == 'credit' else '-' }}${{ "%.4f"|format(tx.amount) }}
+          </td>
+          <td class="small text-muted">{{ tx.service_name or '—' }}</td>
+          <td class="small text-muted">{{ tx.created_at[:16] if tx.created_at else '' }}</td>
+        </tr>
+        {% endfor %}
+        {% if not recent_transactions %}
+          <tr><td colspan="4" class="text-center text-muted py-3">Sin transacciones</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

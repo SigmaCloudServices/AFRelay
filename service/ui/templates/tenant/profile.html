@@ -1,0 +1,50 @@
+{% extends "tenant_base.html" %}
+{% block title %}Perfil — AFRelay{% endblock %}
+{% block content %}
+<h4 class="fw-bold mb-4"><i class="bi bi-person-fill me-2"></i>Mi Perfil</h4>
+
+<div class="row g-3">
+  <div class="col-md-5">
+    <div class="card mb-3">
+      <div class="card-header fw-semibold">Información de Cuenta</div>
+      <div class="card-body">
+        <dl class="row mb-0">
+          <dt class="col-5 text-muted small">Nombre</dt>
+          <dd class="col-7">{{ tenant.name }}</dd>
+          <dt class="col-5 text-muted small">Email</dt>
+          <dd class="col-7">{{ tenant.email }}</dd>
+          <dt class="col-5 text-muted small">CUIT</dt>
+          <dd class="col-7"><code>{{ tenant.cuit }}</code></dd>
+          <dt class="col-5 text-muted small">Cuenta desde</dt>
+          <dd class="col-7 small">{{ tenant.created_at[:10] if tenant.created_at else '—' }}</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-5">
+    <div class="card">
+      <div class="card-header fw-semibold">Cambiar Contraseña</div>
+      <div class="card-body">
+        <form method="post" action="/portal/profile/change-password">
+          <div class="mb-3">
+            <label class="form-label small">Contraseña actual</label>
+            <input type="password" name="current_password" class="form-control form-control-sm" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small">Nueva contraseña</label>
+            <input type="password" name="new_password" class="form-control form-control-sm"
+              minlength="8" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small">Confirmar contraseña</label>
+            <input type="password" name="confirm_password" class="form-control form-control-sm" required>
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm">
+            <i class="bi bi-lock me-1"></i>Cambiar Contraseña
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

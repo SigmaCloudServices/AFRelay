@@ -1,0 +1,52 @@
+{% extends "tenant_base.html" %}
+{% block title %}Transacciones — AFRelay{% endblock %}
+{% block content %}
+<h4 class="fw-bold mb-4"><i class="bi bi-receipt me-2 text-info"></i>Historial de Transacciones</h4>
+
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span>
+      Balance actual:
+      <strong class="text-{% if tenant.balance > 0 %}success{% else %}danger{% endif %} ms-1">
+        ${{ "%.4f"|format(tenant.balance) }}
+      </strong>
+    </span>
+    <span class="text-muted small">{{ transactions|length }} registros</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead class="table-dark">
+        <tr>
+          <th>Tipo</th><th>Monto</th><th>Balance</th>
+          <th>Servicio</th><th>Referencia</th><th>Fecha</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for tx in transactions %}
+        <tr>
+          <td>
+            {% if tx.type == 'credit' %}
+              <span class="badge bg-success">Crédito</span>
+            {% elif tx.type == 'debit' %}
+              <span class="badge bg-danger">Débito</span>
+            {% else %}
+              <span class="badge bg-info">{{ tx.type }}</span>
+            {% endif %}
+          </td>
+          <td class="fw-semibold text-{% if tx.type == 'credit' %}success{% else %}danger{% endif %}">
+            {{ '+' if tx.type == 'credit' else '-' }}${{ "%.4f"|format(tx.amount) }}
+          </td>
+          <td class="small">${{ "%.4f"|format(tx.balance_after) }}</td>
+          <td class="small font-monospace text-muted">{{ tx.service_name or '—' }}</td>
+          <td class="small text-muted">{{ tx.reference or '—' }}</td>
+          <td class="small text-muted">{{ tx.created_at[:19] if tx.created_at else '' }}</td>
+        </tr>
+        {% endfor %}
+        {% if not transactions %}
+          <tr><td colspan="6" class="text-center text-muted py-4">Sin transacciones</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
