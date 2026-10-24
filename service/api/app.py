@@ -14,6 +14,7 @@ from starlette.exceptions import HTTPException
 from service.api import (ui_frontend, ui_monitoring, wsaa, wsfe,
                          wsfe_caea_resilience, wspci)
 from service.api.middleware.observability import ObservabilityMiddleware
+from service.caea_resilience import repository as caea_repo
 from service.caea_resilience.bootstrap import bootstrap_caea_cycles_once
 from service.caea_resilience.db import init_db
 from service.controllers.readiness_health_controller import \
@@ -26,6 +27,10 @@ load_dotenv(override=False)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    # A crash may have left outbox jobs in 'processing'; give them back to the queue.
+    recovered = caea_repo.recover_stranded_processing_jobs()
+    if recovered:
+        logger.warning("Startup: recovered %s CAEA outbox jobs stranded in processing", recovered)
     await bootstrap_caea_cycles_once()
     start_scheduler()
     yield

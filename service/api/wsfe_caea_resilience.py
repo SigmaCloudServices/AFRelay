@@ -7,9 +7,10 @@ from service.caea_resilience import repository as repo
 from service.caea_resilience.bootstrap import (bootstrap_cuit_cycles,
                                               resolve_current_and_next_cycles)
 from service.caea_resilience.db import init_db
+from service.caea_resilience.numbering import (LastAuthorizedUnavailable,
+                                               read_last_authorized,
+                                               seed_numbering)
 from service.caea_resilience.outbox_worker import process_pending_outbox_jobs
-from service.controllers.request_last_authorized_controller import \
-    get_last_authorized_info
 from service.utils.jwt_validator import verify_token
 from service.utils.logger import logger
 
@@ -18,9 +19,20 @@ router = APIRouter()
 
 @router.get("/wsfe/caea/queue/invoices")
 async def list_caea_invoices(cuit: int, pto_vta: int | None = None, since_id: int = 0,
+                             updated_since: str | None = None, cbte_tipo: int | None = None,
+                             cbte_nro: int | None = None,
                              limit: int = Query(default=200, ge=1, le=500), jwt=Depends(verify_token)) -> dict:
+    """since_id alone: new invoices by id. updated_since (+ since_id as tie-break): every status change."""
     init_db()
-    return {"status": "ok", "items": repo.list_invoices(cuit, pto_vta, since_id, limit)}
+    normalized = None
+    if updated_since is not None:
+        try:
+            normalized = repo.normalize_timestamp(updated_since)
+        except ValueError:
+            raise HTTPException(status_code=422, detail="updated_since must be an ISO 8601 timestamp")
+    items = repo.list_invoices(cuit, pto_vta, since_id, limit, updated_since=normalized,
+                               cbte_tipo=cbte_tipo, cbte_nro=cbte_nro)
+    return {"status": "ok", "items": items}
 
 
 @router.post("/wsfe/caea/queue/solicitar")
@@ -37,16 +49,46 @@ async def queue_solicitar_caea(payload: QueueSolicitCaeaRequest, jwt=Depends(ver
     return {"status": "queued", "cycle": cycle, "job": job}
 
 
+def _issue_response(invoice: dict) -> dict:
+    """Same shape for a new invoice and for a ClientRef replay."""
+    cycle = repo.get_cycle_by_id(invoice["cycle_id"]) or {}
+    job = repo.get_outbox_job_by_key(
+        repo.inform_idempotency_key(invoice["cuit"], invoice["pto_vta"], invoice["cbte_tipo"], invoice["cbte_nro"]))
+    if job is not None:
+        job.pop("payload_json", None)
+    return {
+        "status": "queued",
+        "reserved_cbte_nro": invoice["cbte_nro"],
+        "caea": cycle.get("caea_code"),
+        "fch_vig_hasta": cycle.get("fch_vig_hasta"),
+        "fch_tope_inf": cycle.get("fch_tope_inf"),
+        "invoice": repo.public_invoice(invoice),
+        "job": job,
+    }
+
+
+def _replay(invoice: dict, data: dict) -> dict:
+    if (invoice["pto_vta"], invoice["cbte_tipo"]) != (data["PtoVta"], data["CbteTipo"]):
+        raise HTTPException(status_code=409, detail="ClientRef already used for another PtoVta/CbteTipo")
+    return _issue_response(invoice)
+
+
 @router.post("/wsfe/caea/queue/issue-local")
 async def queue_issue_local_invoice(payload: QueueIssueLocalInvoiceRequest, jwt=Depends(verify_token)) -> dict:
     init_db()
     data = payload.model_dump()
+    cuit, pto_vta, cbte_tipo, client_ref = data["Cuit"], data["PtoVta"], data["CbteTipo"], data.get("ClientRef")
+    if client_ref is not None:
+        existing = repo.get_invoice_by_client_ref(cuit, client_ref)
+        if existing is not None:
+            return _replay(existing, data)
+
     if data.get("CycleId"):
         cycle = repo.get_cycle_by_id(data["CycleId"])
     else:
         cbte_fch = data["FeCAEARegInfReq"]["FeDetReq"]["FECAEADetRequest"][0]["CbteFch"]
-        cycle = repo.find_cycle_for_date(data["Cuit"], cbte_fch)
-    if not cycle or cycle["cuit"] != data["Cuit"]:
+        cycle = repo.find_cycle_for_date(cuit, cbte_fch)
+    if not cycle or cycle["cuit"] != cuit:
         raise HTTPException(status_code=404, detail="No CAEA cycle for this Cuit/date")
     if cycle.get("status") != "active" or not cycle.get("caea_code"):
         raise HTTPException(
@@ -54,40 +96,27 @@ async def queue_issue_local_invoice(payload: QueueIssueLocalInvoiceRequest, jwt=
             detail="No active CAEA code loaded for this cycle. Wait bootstrap/solicitar to complete.",
         )
 
+    # Numbering: MAX(local) -> seeded caea_numbering -> (last resort) ARCA live.
     seed = None
-    if not repo.has_local_invoices(data["Cuit"], data["PtoVta"], data["CbteTipo"]):
-        last = await get_last_authorized_info(
-            {"Cuit": data["Cuit"], "PtoVta": data["PtoVta"], "CbteTipo": data["CbteTipo"]}
-        )
-        if last.get("status") != "success":
-            raise HTTPException(status_code=503, detail=f"Cannot read last authorized from ARCA: {last}")
-        seed = int((last.get("response") or {}).get("CbteNro") or 0)
+    if not repo.has_local_invoices(cuit, pto_vta, cbte_tipo) and repo.get_numbering(cuit, pto_vta, cbte_tipo) is None:
+        try:
+            seed = await read_last_authorized(cuit, pto_vta, cbte_tipo)
+        except LastAuthorizedUnavailable as exc:
+            raise HTTPException(status_code=503, detail=f"Sin numeracion inicial para PV {pto_vta} tipo {cbte_tipo}: {exc}")
 
-    det_req = data["FeCAEARegInfReq"]["FeDetReq"]["FECAEADetRequest"][0]
-    det_req["CAEA"] = cycle["caea_code"]
     local_invoice = repo.issue_local_invoice(
         cycle_id=cycle["id"],
-        cuit=data["Cuit"],
-        pto_vta=data["PtoVta"],
-        cbte_tipo=data["CbteTipo"],
+        cuit=cuit,
+        pto_vta=pto_vta,
+        cbte_tipo=cbte_tipo,
         payload=data["FeCAEARegInfReq"],
         seed_last_nro=seed,
+        client_ref=client_ref,
     )
-    next_nro = local_invoice["cbte_nro"]
-
-    request = {"Cuit": data["Cuit"], "FeCAEARegInfReq": data["FeCAEARegInfReq"]}
-    job = repo.add_outbox_job(
-        job_type="INFORM_CAEA_MOVEMENT",
-        idempotency_key=f"inform:{data['Cuit']}:{data['PtoVta']}:{data['CbteTipo']}:{next_nro}",
-        payload={"invoice_id": local_invoice["id"], "request": request},
-    )
-    return {
-        "status": "queued",
-        "reserved_cbte_nro": next_nro,
-        "caea": cycle["caea_code"],
-        "invoice": local_invoice,
-        "job": job,
-    }
+    if client_ref is not None:
+        # The row may come from a concurrent call with the same ClientRef that won the race.
+        return _replay(local_invoice, data)
+    return _issue_response(local_invoice)
 
 
 @router.post("/wsfe/caea/queue/retry")
@@ -133,7 +162,13 @@ async def set_caea_ptos_venta(payload: QueuePtosVentaRequest, jwt=Depends(verify
     init_db()
     repo.set_ptos_venta(payload.Cuit, payload.PtosVenta)
     bootstrap_cuit_cycles(payload.Cuit)
-    return {"status": "ok", "cuit": payload.Cuit, "ptos_venta": payload.PtosVenta}
+    # Seed initial numbering while ARCA is reachable; failures are reported, never raised.
+    try:
+        seeding = await seed_numbering(payload.Cuit)
+    except Exception as exc:  # seed_numbering does not raise; belt and braces for the PUT contract
+        logger.warning("CAEA numbering seed raised for cuit=%s: %r", payload.Cuit, exc)
+        seeding = {"seeded": 0, "skipped": 0, "errors": [{"pto_vta": None, "cbte_tipo": None, "error": type(exc).__name__}]}
+    return {"status": "ok", "cuit": payload.Cuit, "ptos_venta": payload.PtosVenta, "seeding": seeding}
 
 
 @router.get("/wsfe/caea/queue/cycles")

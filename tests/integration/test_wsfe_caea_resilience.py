@@ -44,7 +44,7 @@ async def test_queue_solicitar_and_list_outbox(client: AsyncClient, override_aut
 @pytest.mark.asyncio
 async def test_issue_local_reserves_number_and_queues_job(client: AsyncClient, override_auth, isolated_state_db, monkeypatch):
     monkeypatch.setattr(
-        "service.api.wsfe_caea_resilience.get_last_authorized_info",
+        "service.caea_resilience.numbering.get_last_authorized_info",
         AsyncMock(return_value={"status": "success", "response": {"CbteNro": 0}}),
     )
     cycle_resp = await client.post(
@@ -126,7 +126,7 @@ async def test_issue_local_requires_active_cycle(client: AsyncClient, override_a
         "CbteTipo": 11,
         "FeCAEARegInfReq": {
             "FeCabReq": {"CantReg": 1, "PtoVta": 1, "CbteTipo": 11},
-            "FeDetReq": {"FECAEADetRequest": [{"CbteDesde": 0, "CbteHasta": 0}]},
+            "FeDetReq": {"FECAEADetRequest": [{"CbteDesde": 0, "CbteHasta": 0, "CbteFch": "20260202"}]},
         },
     }
     resp = await client.post("/wsfe/caea/queue/issue-local", json=request_payload)
@@ -135,6 +135,9 @@ async def test_issue_local_requires_active_cycle(client: AsyncClient, override_a
 
 @pytest.mark.asyncio
 async def test_solicit_without_caea_is_not_marked_active(client: AsyncClient, override_auth, isolated_state_db, monkeypatch):
+    # /active lists the cycles of "today": pin today to the first half of 2026-02.
+    monkeypatch.setattr("service.api.wsfe_caea_resilience.resolve_current_and_next_cycles",
+                        lambda now=None: [(202602, 1), (202602, 2)])
     cycle_resp = await client.post(
         "/wsfe/caea/queue/solicitar",
         json={"Cuit": 30740253022, "Periodo": 202602, "Orden": 2},
@@ -219,7 +222,7 @@ async def test_issue_local_without_cycle_id_uses_cycle_of_cbte_fch(client, overr
     repo.update_cycle_from_afip(cycle["id"], {"ResultGet": {
         "CAEA": "61234567890123", "FchVigDesde": "20261016", "FchVigHasta": "20261031", "FchTopeInf": "20261108"}})
     monkeypatch.setattr(
-        "service.api.wsfe_caea_resilience.get_last_authorized_info",
+        "service.caea_resilience.numbering.get_last_authorized_info",
         AsyncMock(return_value={"status": "success", "response": {"CbteNro": 0}}),
     )
     body = {"Cuit": 30575099943, "PtoVta": 98, "CbteTipo": 6, "FeCAEARegInfReq": {
@@ -238,7 +241,8 @@ def _queue_inform_job(response, monkeypatch):
 
     cycle = repo.create_cycle(30575099943, 202610, 2)
     row = repo.issue_local_invoice(cycle["id"], 30575099943, 98, 6, _payload(), seed_last_nro=None)
-    job = repo.add_outbox_job("INFORM_CAEA_MOVEMENT", f"inform:{row['id']}", {"invoice_id": row["id"], "request": {}})
+    # issue_local_invoice queues its own inform job in the same transaction
+    job = repo.get_outbox_job_by_key(f"inform:30575099943:98:6:{row['cbte_nro']}")
     monkeypatch.setattr(outbox_worker, "_run_inform", AsyncMock(return_value=response))
     return outbox_worker, row, job
 

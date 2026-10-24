@@ -167,7 +167,11 @@ async def process_pending_outbox_jobs(limit: int = 20) -> dict[str, int]:
                 else:
                     repo.set_cycle_error(payload["cycle_id"], str(exc))
             elif job["job_type"] == "INFORM_CAEA_MOVEMENT":
-                repo.mark_invoice_error(payload["invoice_id"], str(exc))
+                # Invoice state machine: issued_local -> informed | rejected; 'error' only on a dead job.
+                if new_status == "failed":
+                    repo.mark_invoice_error(payload["invoice_id"], str(exc))
+                else:
+                    repo.note_invoice_inform_error(payload["invoice_id"], str(exc))
             if new_status == "failed":
                 failed += 1
             else:
