@@ -93,8 +93,9 @@ async def queue_issue_local_invoice(payload: QueueIssueLocalInvoiceRequest, jwt=
 @router.post("/wsfe/caea/queue/retry")
 async def retry_outbox(limit: int = Query(default=20, ge=1, le=200), jwt=Depends(verify_token)) -> dict:
     init_db()
+    revived = repo.revive_failed_outbox_jobs()
     result = await process_pending_outbox_jobs(limit=limit)
-    return {"status": "ok", "result": result}
+    return {"status": "ok", "revived": revived, "result": result}
 
 
 @router.get("/wsfe/caea/queue/outbox")

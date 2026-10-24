@@ -89,5 +89,75 @@ def test_terminal_invoice_states_are_not_overwritten(isolated_state_db):
 
 def test_claim_outbox_job_is_exclusive(isolated_state_db):
     job = repo.add_outbox_job("SOLICIT_CAEA", "solicit:x", {"cycle_id": 1, "cycle": {}})
-    assert repo.claim_outbox_job(job["id"]) is True
-    assert repo.claim_outbox_job(job["id"]) is False
+    claimed = repo.claim_outbox_job(job["id"])
+    assert claimed is not None and claimed["status"] == "processing"
+    assert repo.claim_outbox_job(job["id"]) is None
+
+
+def test_claim_skips_job_rescheduled_into_the_future(isolated_state_db):
+    job = repo.add_outbox_job("SOLICIT_CAEA", "solicit:y", {"cycle_id": 1, "cycle": {}})
+    assert repo.claim_outbox_job(job["id"]) is not None
+    repo.mark_outbox_retry(job["id"], 1, "2999-01-01T00:00:00+00:00", "down")
+    # a runner holding a stale batch must not run it again before next_retry_at
+    assert repo.claim_outbox_job(job["id"]) is None
+
+
+# --- Critical 2: inform jobs never die; /retry revives failed jobs ------------------------
+
+def _past():
+    return "2000-01-01T00:00:00+00:00"
+
+
+async def _async(value):
+    return value
+
+
+@pytest.mark.asyncio
+async def test_inform_job_failing_12_times_stays_retrying(isolated_state_db, monkeypatch):
+    row = _issue()
+    job = _inform_job_for(row)
+    monkeypatch.setattr(outbox_worker, "_next_retry", lambda attempts: _past())
+    monkeypatch.setattr(outbox_worker, "_run_inform", lambda _p: _async({"status": "error", "error": "down"}))
+    for _ in range(12):
+        result = await outbox_worker.process_pending_outbox_jobs()
+        assert result["processed"] == 1 and result["failed"] == 0
+    j = _job(job["id"])
+    assert j["status"] == "retrying" and j["attempts"] == 12
+
+
+@pytest.mark.asyncio
+async def test_solicit_job_still_fails_after_10_attempts(isolated_state_db, monkeypatch):
+    cycle = repo.create_cycle(CUIT, 202610, 2)
+    job = repo.add_outbox_job("SOLICIT_CAEA", "solicit:cap", {"cycle_id": cycle["id"], "cycle": {}})
+    monkeypatch.setattr(outbox_worker, "_next_retry", lambda attempts: _past())
+    monkeypatch.setattr(outbox_worker, "caea_solicitar", lambda _p: _async({"status": "error", "error": "down"}))
+    for _ in range(10):
+        await outbox_worker.process_pending_outbox_jobs()
+    assert _job(job["id"])["status"] == "failed"
+
+
+def _force_failed(job_id):
+    conn = db.get_connection()
+    try:
+        conn.execute("UPDATE afip_outbox SET status='failed', attempts=10 WHERE id=?", (job_id,))
+    finally:
+        conn.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("path", ["/wsfe/caea/queue/retry", "/ui/caea/queue/retry"])
+async def test_retry_endpoints_revive_failed_jobs(client, override_auth, isolated_state_db, monkeypatch, path):
+    cycle = repo.create_cycle(CUIT, 202610, 2)
+    job = repo.add_outbox_job("SOLICIT_CAEA", "solicit:revive", {"cycle_id": cycle["id"], "cycle": {}})
+    _force_failed(job["id"])
+    calls = []
+
+    async def fake_solicit(p):
+        calls.append(p)
+        return {"status": "success", "response": {"ResultGet": {"CAEA": "61234567890123"}}}
+
+    monkeypatch.setattr(outbox_worker, "caea_solicitar", fake_solicit)
+    resp = await client.post(path + "?limit=5")
+    assert resp.status_code == 200
+    assert len(calls) == 1
+    assert _job(job["id"])["status"] == "done"

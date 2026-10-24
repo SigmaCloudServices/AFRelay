@@ -121,8 +121,9 @@ async def ui_caea_queue_retry(
     jwt=Depends(verify_token),
 ) -> dict:
     init_db()
+    revived = caea_repo.revive_failed_outbox_jobs()
     result = await process_pending_outbox_jobs(limit=limit)
-    return {"status": "ok", "result": result}
+    return {"status": "ok", "revived": revived, "result": result}
 
 
 @router.get("/ui/caea/assignments")

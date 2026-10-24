@@ -326,15 +326,29 @@ def fetch_due_outbox_jobs(limit: int = 20) -> list[dict[str, Any]]:
         conn.close()
 
 
-def claim_outbox_job(job_id: int) -> bool:
-    """Atomically move a due job to 'processing'. False if another runner already took it."""
+def claim_outbox_job(job_id: int) -> dict[str, Any] | None:
+    """Atomically move a due job to 'processing' and return its fresh row.
+
+    None when another runner already claimed it (or rescheduled it into the future):
+    the caller must skip the job.
+    """
     conn = get_connection()
     try:
+        now = _now_iso()
+        conn.execute("BEGIN IMMEDIATE")
         cur = conn.execute(
-            "UPDATE afip_outbox SET status='processing', updated_at=? WHERE id=? AND status IN ('pending', 'retrying')",
-            (_now_iso(), job_id),
+            """
+            UPDATE afip_outbox SET status='processing', updated_at=?
+             WHERE id=? AND status IN ('pending', 'retrying') AND next_retry_at <= ?
+            """,
+            (now, job_id, now),
         )
-        return cur.rowcount == 1
+        row = conn.execute("SELECT * FROM afip_outbox WHERE id=?", (job_id,)).fetchone() if cur.rowcount == 1 else None
+        conn.commit()
+        return dict(row) if row else None
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 
@@ -354,10 +368,15 @@ def mark_outbox_done(job_id: int, response: dict[str, Any]) -> None:
         conn.close()
 
 
-def mark_outbox_retry(job_id: int, attempts: int, next_retry_at: str, error: str) -> None:
+DEFAULT_MAX_ATTEMPTS = 10
+
+
+def mark_outbox_retry(job_id: int, attempts: int, next_retry_at: str, error: str,
+                      max_attempts: int | None = DEFAULT_MAX_ATTEMPTS) -> str:
+    """Record a failed attempt. max_attempts=None means retry forever. Returns the new status."""
     conn = get_connection()
     try:
-        status = "failed" if attempts >= 10 else "retrying"
+        status = "failed" if max_attempts is not None and attempts >= max_attempts else "retrying"
         conn.execute(
             """
             UPDATE afip_outbox
@@ -366,6 +385,38 @@ def mark_outbox_retry(job_id: int, attempts: int, next_retry_at: str, error: str
             """,
             (status, attempts, next_retry_at, error, _now_iso(), job_id),
         )
+        return status
+    finally:
+        conn.close()
+
+
+def revive_failed_outbox_jobs() -> int:
+    """Put every 'failed' job back to 'pending' (attempts reset to 0, due now).
+
+    Invoices whose inform job had died ('error') go back to 'issued_local' because
+    their inform is pending again.
+    """
+    conn = get_connection()
+    try:
+        now = _now_iso()
+        conn.execute("BEGIN IMMEDIATE")
+        rows = conn.execute("SELECT id, job_type, payload_json FROM afip_outbox WHERE status='failed'").fetchall()
+        for row in rows:
+            conn.execute(
+                "UPDATE afip_outbox SET status='pending', attempts=0, next_retry_at=?, updated_at=? WHERE id=?",
+                (now, now, row["id"]),
+            )
+            if row["job_type"] == "INFORM_CAEA_MOVEMENT":
+                invoice_id = json.loads(row["payload_json"]).get("invoice_id")
+                conn.execute(
+                    "UPDATE caea_invoice SET status='issued_local', updated_at=? WHERE id=? AND status='error'",
+                    (now, invoice_id),
+                )
+        conn.commit()
+        return len(rows)
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 

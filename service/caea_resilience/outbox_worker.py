@@ -96,7 +96,8 @@ async def process_pending_outbox_jobs(limit: int = 20) -> dict[str, int]:
         job_id = job["id"]
         # Several runners (scheduler, bootstrap, retry endpoints) may hold the same batch:
         # only the one whose atomic claim succeeds processes the job.
-        if not repo.claim_outbox_job(job_id):
+        job = repo.claim_outbox_job(job_id)
+        if job is None:
             continue
         processed += 1
         payload = json.loads(job["payload_json"])
@@ -156,7 +157,9 @@ async def process_pending_outbox_jobs(limit: int = 20) -> dict[str, int]:
             next_retry = _next_retry(attempts)
             if isinstance(exc, DeferredRetryError):
                 next_retry = exc.next_retry_at
-            repo.mark_outbox_retry(job_id, attempts, next_retry, str(exc))
+            # Fiscal informs must eventually reach ARCA: no attempt cap, backoff tops at 1h.
+            max_attempts = None if job["job_type"] == "INFORM_CAEA_MOVEMENT" else repo.DEFAULT_MAX_ATTEMPTS
+            new_status = repo.mark_outbox_retry(job_id, attempts, next_retry, str(exc), max_attempts=max_attempts)
             logger.warning("Outbox job %s failed (attempt %s): %s", job_id, attempts, exc)
             if job["job_type"] == "SOLICIT_CAEA":
                 if isinstance(exc, DeferredRetryError):
@@ -165,7 +168,7 @@ async def process_pending_outbox_jobs(limit: int = 20) -> dict[str, int]:
                     repo.set_cycle_error(payload["cycle_id"], str(exc))
             elif job["job_type"] == "INFORM_CAEA_MOVEMENT":
                 repo.mark_invoice_error(payload["invoice_id"], str(exc))
-            if attempts >= 10:
+            if new_status == "failed":
                 failed += 1
             else:
                 retried += 1
