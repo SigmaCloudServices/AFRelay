@@ -64,7 +64,10 @@ def classify_inform_response(response: dict[str, Any]) -> tuple[str, str]:
     message = " | ".join(parts)
     if resultado in ("A", "O"):
         return "accepted", message
-    return "rejected", message or "Resultado R sin detalle"
+    if resultado == "R":
+        return "rejected", message or "Resultado R sin detalle"
+    # No explicit Resultado (Errors-only, empty or malformed reply): transient, retry.
+    return "retry", message or "Respuesta de ARCA sin Resultado"
 
 
 def _deferred_retry_from_15006(response_payload: dict[str, Any]) -> str | None:
@@ -124,6 +127,8 @@ async def process_pending_outbox_jobs(limit: int = 20) -> dict[str, int]:
                 if response["status"] != "success":
                     raise RuntimeError(str(response["error"]))
                 state, message = classify_inform_response(response)
+                if state == "retry":
+                    raise RuntimeError(message)
                 if state == "accepted":
                     repo.mark_invoice_informed(payload["invoice_id"], response, message)
                 else:

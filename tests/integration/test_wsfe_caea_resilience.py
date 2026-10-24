@@ -233,6 +233,59 @@ async def test_issue_local_without_cycle_id_uses_cycle_of_cbte_fch(client, overr
     assert all("cycle_id" in c for c in active["cycles"])
 
 
+def _queue_inform_job(response, monkeypatch):
+    from service.caea_resilience import outbox_worker
+
+    cycle = repo.create_cycle(30575099943, 202610, 2)
+    row = repo.issue_local_invoice(cycle["id"], 30575099943, 98, 6, _payload(), seed_last_nro=None)
+    job = repo.add_outbox_job("INFORM_CAEA_MOVEMENT", f"inform:{row['id']}", {"invoice_id": row["id"], "request": {}})
+    monkeypatch.setattr(outbox_worker, "_run_inform", AsyncMock(return_value=response))
+    return outbox_worker, row, job
+
+
+def _inform_resp(resultado, errors=None):
+    return {"status": "success", "response": {
+        "FeCabResp": {"Resultado": resultado},
+        "FeDetResp": {"FECAEADetResponse": [{"Resultado": resultado}]},
+        "Errors": {"Err": errors} if errors else None}}
+
+
+def _job_and_invoice(job_id, invoice_id):
+    job = next(j for j in repo.list_outbox(limit=50) if j["id"] == job_id)
+    invoice = next(i for i in repo.list_invoices(30575099943) if i["id"] == invoice_id)
+    return job, invoice
+
+
+@pytest.mark.asyncio
+async def test_worker_rejected_inform_is_terminal(isolated_state_db, monkeypatch):
+    worker, row, job = _queue_inform_job(_inform_resp("R", [{"Code": 10016, "Msg": "fecha"}]), monkeypatch)
+    result = await worker.process_pending_outbox_jobs()
+    assert result["done"] == 1 and result["retried"] == 0
+    j, inv = _job_and_invoice(job["id"], row["id"])
+    assert j["status"] == "done"
+    assert inv["status"] == "rejected" and "10016" in inv["last_error"]
+
+
+@pytest.mark.asyncio
+async def test_worker_accepted_inform_marks_informed(isolated_state_db, monkeypatch):
+    worker, row, job = _queue_inform_job(_inform_resp("A"), monkeypatch)
+    result = await worker.process_pending_outbox_jobs()
+    assert result["done"] == 1
+    j, inv = _job_and_invoice(job["id"], row["id"])
+    assert j["status"] == "done" and inv["status"] == "informed"
+
+
+@pytest.mark.asyncio
+async def test_worker_errors_only_inform_is_retried_not_rejected(isolated_state_db, monkeypatch):
+    resp = {"status": "success", "response": {"Errors": {"Err": [{"Code": 600, "Msg": "token"}]}}}
+    worker, row, job = _queue_inform_job(resp, monkeypatch)
+    result = await worker.process_pending_outbox_jobs()
+    assert result["done"] == 0 and result["retried"] == 1
+    j, inv = _job_and_invoice(job["id"], row["id"])
+    assert j["status"] == "retrying" and j["attempts"] == 1
+    assert inv["status"] != "rejected"
+
+
 @pytest.mark.asyncio
 async def test_list_invoices_exposes_rejected_status(client: AsyncClient, override_auth, isolated_state_db):
     cycle = repo.create_cycle(30575099943, 202610, 2)
