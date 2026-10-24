@@ -102,6 +102,34 @@ def test_claim_skips_job_rescheduled_into_the_future(isolated_state_db):
     assert repo.claim_outbox_job(job["id"]) is None
 
 
+def test_mark_outbox_retry_returns_none_when_job_not_processing(isolated_state_db):
+    job = repo.add_outbox_job("SOLICIT_CAEA", "solicit:z", {"cycle_id": 1, "cycle": {}})
+    assert repo.mark_outbox_retry(job["id"], 1, "2999-01-01T00:00:00+00:00", "down") is None  # still pending
+    assert repo.claim_outbox_job(job["id"]) is not None
+    assert repo.mark_outbox_retry(job["id"], 1, "2999-01-01T00:00:00+00:00", "down") == "retrying"
+
+
+@pytest.mark.asyncio
+async def test_worker_ignores_failure_of_job_no_longer_ours(isolated_state_db, monkeypatch):
+    row = _issue()
+    job = _inform_job_for(row)
+
+    async def inform_then_lose_job(_payload):
+        conn = db.get_connection()  # e.g. stranded recovery handed it to another runner
+        try:
+            conn.execute("UPDATE afip_outbox SET status='retrying' WHERE id=?", (job["id"],))
+        finally:
+            conn.close()
+        return {"status": "error", "error": "down"}
+
+    monkeypatch.setattr(outbox_worker, "_run_inform", inform_then_lose_job)
+    result = await outbox_worker.process_pending_outbox_jobs()
+    assert result["retried"] == 0 and result["failed"] == 0
+    inv = _invoice(row["id"])
+    assert inv["status"] == "issued_local" and inv["last_error"] is None
+    assert _job(job["id"])["attempts"] == 0
+
+
 # --- Critical 2: inform jobs never die; /retry revives failed jobs ------------------------
 
 def _past():

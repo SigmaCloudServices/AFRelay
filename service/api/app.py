@@ -15,7 +15,6 @@ from service.api import (ui_frontend, ui_monitoring, wsaa, wsfe,
                          wsfe_caea_resilience, wspci)
 from service.api.middleware.observability import ObservabilityMiddleware
 from service.caea_resilience import repository as caea_repo
-from service.caea_resilience.bootstrap import bootstrap_caea_cycles_once
 from service.caea_resilience.db import init_db
 from service.controllers.readiness_health_controller import \
     readiness_health_check
@@ -31,7 +30,10 @@ async def lifespan(app: FastAPI):
     recovered = caea_repo.recover_stranded_processing_jobs()
     if recovered:
         logger.warning("Startup: recovered %s CAEA outbox jobs stranded in processing", recovered)
-    await bootstrap_caea_cycles_once()
+    # The CAEA bootstrap (ARCA calls: numbering seed + outbox) is NOT awaited here, so a
+    # black-holed ARCA cannot keep the API from serving issue-local. The scheduler's
+    # caea_bootstrap_watchdog job runs it right away (next_run_time=now); max_instances=1
+    # means only one bootstrap runs at a time.
     start_scheduler()
     yield
     stop_scheduler()

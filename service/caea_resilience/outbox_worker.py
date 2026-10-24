@@ -160,6 +160,10 @@ async def process_pending_outbox_jobs(limit: int = 20) -> dict[str, int]:
             # Fiscal informs must eventually reach ARCA: no attempt cap, backoff tops at 1h.
             max_attempts = None if job["job_type"] == "INFORM_CAEA_MOVEMENT" else repo.DEFAULT_MAX_ATTEMPTS
             new_status = repo.mark_outbox_retry(job_id, attempts, next_retry, str(exc), max_attempts=max_attempts)
+            if new_status is None:
+                # No longer ours (recovered/claimed elsewhere): no counting, no cycle/invoice change.
+                logger.warning("Outbox job %s failed but is no longer processing here; leaving it: %s", job_id, exc)
+                continue
             logger.warning("Outbox job %s failed (attempt %s): %s", job_id, attempts, exc)
             if job["job_type"] == "SOLICIT_CAEA":
                 if isinstance(exc, DeferredRetryError):

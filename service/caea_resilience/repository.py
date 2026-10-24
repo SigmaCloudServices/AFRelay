@@ -533,12 +533,16 @@ DEFAULT_MAX_ATTEMPTS = 10
 
 
 def mark_outbox_retry(job_id: int, attempts: int, next_retry_at: str, error: str,
-                      max_attempts: int | None = DEFAULT_MAX_ATTEMPTS) -> str:
-    """Record a failed attempt. max_attempts=None means retry forever. Returns the new status."""
+                      max_attempts: int | None = DEFAULT_MAX_ATTEMPTS) -> str | None:
+    """Record a failed attempt. max_attempts=None means retry forever.
+
+    Returns the new status, or None when the job is no longer 'processing' (another runner
+    or the stranded recovery took it): the caller must then leave the job and its entity alone.
+    """
     conn = get_connection()
     try:
         status = "failed" if max_attempts is not None and attempts >= max_attempts else "retrying"
-        conn.execute(
+        cur = conn.execute(
             """
             UPDATE afip_outbox
                SET status=?, attempts=?, next_retry_at=?, last_error=?, updated_at=?
@@ -546,7 +550,7 @@ def mark_outbox_retry(job_id: int, attempts: int, next_retry_at: str, error: str
             """,
             (status, attempts, next_retry_at, error, _now_iso(), job_id),
         )
-        return status
+        return status if cur.rowcount == 1 else None
     finally:
         conn.close()
 
