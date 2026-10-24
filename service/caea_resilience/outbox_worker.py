@@ -49,6 +49,24 @@ def _extract_errors(response_payload: dict[str, Any]) -> list[dict[str, Any]]:
     return err_list
 
 
+def classify_inform_response(response: dict[str, Any]) -> tuple[str, str]:
+    payload = response.get("response") or {}
+    det = (payload.get("FeDetResp") or {}).get("FECAEADetResponse") or []
+    if isinstance(det, dict):
+        det = [det]
+    first = det[0] if det else {}
+    resultado = first.get("Resultado") or (payload.get("FeCabResp") or {}).get("Resultado")
+    parts = [f"{e.get('Code')}: {e.get('Msg')}" for e in _extract_errors(payload)]
+    obs = (first.get("Observaciones") or {}).get("Obs") or []
+    if isinstance(obs, dict):
+        obs = [obs]
+    parts += [f"{o.get('Code')}: {o.get('Msg')}" for o in obs if isinstance(o, dict)]
+    message = " | ".join(parts)
+    if resultado in ("A", "O"):
+        return "accepted", message
+    return "rejected", message or "Resultado R sin detalle"
+
+
 def _deferred_retry_from_15006(response_payload: dict[str, Any]) -> str | None:
     for err in _extract_errors(response_payload):
         if str(err.get("Code")) != "15006":
@@ -105,7 +123,11 @@ async def process_pending_outbox_jobs(limit: int = 20) -> dict[str, int]:
                 response = await _run_inform(payload)
                 if response["status"] != "success":
                     raise RuntimeError(str(response["error"]))
-                repo.mark_invoice_informed(payload["invoice_id"])
+                state, message = classify_inform_response(response)
+                if state == "accepted":
+                    repo.mark_invoice_informed(payload["invoice_id"], response, message)
+                else:
+                    repo.mark_invoice_rejected(payload["invoice_id"], response, message)
             else:
                 raise RuntimeError(f"Unknown outbox job type: {job['job_type']}")
 

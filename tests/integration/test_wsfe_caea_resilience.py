@@ -231,3 +231,19 @@ async def test_issue_local_without_cycle_id_uses_cycle_of_cbte_fch(client, overr
 
     active = (await client.get("/wsfe/caea/queue/active?cuit=30575099943")).json()
     assert all("cycle_id" in c for c in active["cycles"])
+
+
+@pytest.mark.asyncio
+async def test_list_invoices_exposes_rejected_status(client: AsyncClient, override_auth, isolated_state_db):
+    cycle = repo.create_cycle(30575099943, 202610, 2)
+    row = repo.issue_local_invoice(cycle["id"], 30575099943, 98, 6, _payload(), seed_last_nro=None)
+    repo.mark_invoice_rejected(row["id"], {"status": "success"}, "10016: fecha")
+
+    resp = await client.get("/wsfe/caea/queue/invoices?cuit=30575099943")
+    assert resp.status_code == 200
+    items = resp.json()["items"]
+    assert len(items) == 1
+    assert items[0]["id"] == row["id"]
+    assert items[0]["status"] == "rejected"
+    assert items[0]["last_error"] == "10016: fecha"
+    assert items[0]["response"] == {"status": "success"}

@@ -14,6 +14,13 @@ from service.utils.logger import logger
 router = APIRouter()
 
 
+@router.get("/wsfe/caea/queue/invoices")
+async def list_caea_invoices(cuit: int, pto_vta: int | None = None, since_id: int = 0,
+                             limit: int = Query(default=200, ge=1, le=500), jwt=Depends(verify_token)) -> dict:
+    init_db()
+    return {"status": "ok", "items": repo.list_invoices(cuit, pto_vta, since_id, limit)}
+
+
 @router.post("/wsfe/caea/queue/solicitar")
 async def queue_solicitar_caea(payload: QueueSolicitCaeaRequest, jwt=Depends(verify_token)) -> dict:
     init_db()

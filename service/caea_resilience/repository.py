@@ -213,13 +213,46 @@ def issue_local_invoice(
         conn.close()
 
 
-def mark_invoice_informed(invoice_id: int) -> None:
+def mark_invoice_informed(invoice_id: int, response: dict[str, Any] | None = None, message: str = "") -> None:
     conn = get_connection()
     try:
+        now = _now_iso()
         conn.execute(
-            "UPDATE caea_invoice SET status='informed', updated_at=?, last_error=NULL WHERE id=?",
-            (_now_iso(), invoice_id),
+            "UPDATE caea_invoice SET status='informed', informed_at=?, updated_at=?, last_error=?, response_json=? WHERE id=?",
+            (now, now, message or None, json.dumps(response) if response else None, invoice_id),
         )
+    finally:
+        conn.close()
+
+
+def mark_invoice_rejected(invoice_id: int, response: dict[str, Any], message: str) -> None:
+    conn = get_connection()
+    try:
+        now = _now_iso()
+        conn.execute(
+            "UPDATE caea_invoice SET status='rejected', informed_at=?, updated_at=?, last_error=?, response_json=? WHERE id=?",
+            (now, now, message, json.dumps(response), invoice_id),
+        )
+    finally:
+        conn.close()
+
+
+def list_invoices(cuit: int, pto_vta: int | None = None, since_id: int = 0, limit: int = 200) -> list[dict[str, Any]]:
+    conn = get_connection()
+    try:
+        sql = "SELECT * FROM caea_invoice WHERE cuit=? AND id>?"
+        args: list[Any] = [cuit, since_id]
+        if pto_vta is not None:
+            sql += " AND pto_vta=?"
+            args.append(pto_vta)
+        rows = conn.execute(sql + " ORDER BY id LIMIT ?", (*args, limit)).fetchall()
+        items = []
+        for row in rows:
+            item = dict(row)
+            item["response"] = json.loads(item.pop("response_json")) if item.get("response_json") else None
+            item.pop("payload_json", None)
+            items.append(item)
+        return items
     finally:
         conn.close()
 

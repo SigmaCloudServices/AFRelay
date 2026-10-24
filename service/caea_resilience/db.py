@@ -62,6 +62,10 @@ def init_db() -> None:
             );
             """
         )
+        existing = {row["name"] for row in conn.execute("PRAGMA table_info(caea_invoice)").fetchall()}
+        for column in ("informed_at", "response_json"):
+            if column not in existing:
+                conn.execute(f"ALTER TABLE caea_invoice ADD COLUMN {column} TEXT")
         conn.execute(
             """
             CREATE UNIQUE INDEX IF NOT EXISTS ux_caea_invoice
