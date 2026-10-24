@@ -3,7 +3,8 @@ from datetime import datetime, timedelta, timezone
 
 from service.caea_resilience import repository as repo
 from service.caea_resilience.db import init_db
-from service.caea_resilience.outbox_worker import process_pending_outbox_jobs
+from service.caea_resilience.outbox_worker import (_extract_errors,
+                                                   process_pending_outbox_jobs)
 from service.controllers.wsfe_caea_controller import caea_sin_movimiento_informar
 from service.utils.logger import logger
 
@@ -77,12 +78,22 @@ async def inform_sin_movimiento_once() -> dict:
     today = datetime.now(timezone.utc).astimezone(AR_TZ).strftime("%Y%m%d")
     done = 0
     for cycle_id, cuit, pto_vta, caea in pending_sin_movimiento(today):
-        response = await caea_sin_movimiento_informar({"Cuit": cuit, "PtoVta": pto_vta, "CAEA": caea})
-        if response.get("status") == "success":
+        try:
+            response = await caea_sin_movimiento_informar({"Cuit": cuit, "PtoVta": pto_vta, "CAEA": caea})
+        except Exception as exc:
+            logger.warning("Sin movimiento raised cuit=%s pv=%s caea=%s: %s", cuit, pto_vta, caea, exc)
+            continue
+        payload = response.get("response") if isinstance(response, dict) else None
+        payload = payload if isinstance(payload, dict) else {}
+        errors = _extract_errors(payload)
+        resultado = payload.get("Resultado")
+        if response.get("status") == "success" and not errors and resultado != "R":
             repo.mark_sin_movimiento(cycle_id, pto_vta, response)
             done += 1
         else:
-            logger.warning("Sin movimiento failed cuit=%s pv=%s caea=%s: %s", cuit, pto_vta, caea, response)
+            detail = " | ".join(f"{e.get('Code')}: {e.get('Msg')}" for e in errors) or response
+            logger.warning("Sin movimiento failed cuit=%s pv=%s caea=%s resultado=%s: %s",
+                           cuit, pto_vta, caea, resultado, detail)
     return {"informed": done}
 
 

@@ -126,6 +126,7 @@ def start_scheduler():
         minute=30,
         timezone="America/Argentina/Buenos_Aires",
         id="caea_sin_movimiento",
+        misfire_grace_time=3600,
         replace_existing=True,
         max_instances=1,
         coalesce=True,

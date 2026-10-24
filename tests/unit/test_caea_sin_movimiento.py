@@ -71,3 +71,60 @@ async def test_inform_sin_movimiento_once_marks_success_and_logs_failure(isolate
     assert by_pv[98]["sin_movimiento_at"] is not None
     assert by_pv[99]["sin_movimiento_at"] is None
     assert len(warnings) == 1 and "Sin movimiento failed" in warnings[0][0]
+
+
+def _setup_two_pvs(monkeypatch):
+    cycle = _active_cycle()
+    repo.set_ptos_venta(30575099943, [98, 99])
+    monkeypatch.setattr(bootstrap, "pending_sin_movimiento",
+                        lambda today: [(cycle["id"], 30575099943, 98, "61234567890123"),
+                                       (cycle["id"], 30575099943, 99, "61234567890123")])
+    warnings = []
+    monkeypatch.setattr(bootstrap.logger, "warning", lambda *a, **k: warnings.append(a))
+    return warnings
+
+
+def _marked(pv):
+    by_pv = {p["pto_vta"]: p for p in repo.list_cycles_with_pvs(30575099943)[0]["ptos_venta"]}
+    return by_pv[pv]["sin_movimiento_at"] is not None
+
+
+@pytest.mark.asyncio
+async def test_success_envelope_with_arca_errors_not_marked(isolated_state_db, monkeypatch):
+    warnings = _setup_two_pvs(monkeypatch)
+
+    async def fake(comp):
+        return {"status": "success", "response": {"Errors": {"Err": [{"Code": 1234, "Msg": "bad"}]}}}
+
+    monkeypatch.setattr(bootstrap, "caea_sin_movimiento_informar", fake)
+    assert await bootstrap.inform_sin_movimiento_once() == {"informed": 0}
+    assert not _marked(98) and not _marked(99)
+    assert len(warnings) == 2 and "1234: bad" in warnings[0][-1]
+
+
+@pytest.mark.asyncio
+async def test_success_envelope_with_resultado_r_not_marked(isolated_state_db, monkeypatch):
+    warnings = _setup_two_pvs(monkeypatch)
+
+    async def fake(comp):
+        return {"status": "success", "response": {"Resultado": "R"}}
+
+    monkeypatch.setattr(bootstrap, "caea_sin_movimiento_informar", fake)
+    assert await bootstrap.inform_sin_movimiento_once() == {"informed": 0}
+    assert not _marked(98) and not _marked(99)
+    assert len(warnings) == 2
+
+
+@pytest.mark.asyncio
+async def test_exception_for_one_pv_does_not_abort_others(isolated_state_db, monkeypatch):
+    warnings = _setup_two_pvs(monkeypatch)
+
+    async def fake(comp):
+        if comp["PtoVta"] == 98:
+            raise RuntimeError("token file missing")
+        return {"status": "success", "response": {"Resultado": "A"}}
+
+    monkeypatch.setattr(bootstrap, "caea_sin_movimiento_informar", fake)
+    assert await bootstrap.inform_sin_movimiento_once() == {"informed": 1}
+    assert not _marked(98) and _marked(99)
+    assert len(warnings) == 1
