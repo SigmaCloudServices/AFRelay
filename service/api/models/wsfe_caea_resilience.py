@@ -14,3 +14,7 @@ class QueueIssueLocalInvoiceRequest(BaseModel):
     CbteTipo: int
     FeCAEARegInfReq: dict
 
+
+class QueuePtosVentaRequest(BaseModel):
+    Cuit: int
+    PtosVenta: list[int]

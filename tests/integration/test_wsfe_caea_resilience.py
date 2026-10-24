@@ -300,3 +300,20 @@ async def test_list_invoices_exposes_rejected_status(client: AsyncClient, overri
     assert items[0]["status"] == "rejected"
     assert items[0]["last_error"] == "10016: fecha"
     assert items[0]["response"] == {"status": "success"}
+
+
+@pytest.mark.asyncio
+async def test_put_ptos_venta_and_list_cycles(client: AsyncClient, override_auth, isolated_state_db):
+    resp = await client.put("/wsfe/caea/queue/ptos-venta", json={"Cuit": 30740253022, "PtosVenta": [98, 99]})
+    assert resp.status_code == 200
+    assert resp.json()["ptos_venta"] == [98, 99]
+
+    resp = await client.get("/wsfe/caea/queue/cycles?cuit=30740253022")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "ok"
+    assert len(body["items"]) == 2
+    for item in body["items"]:
+        assert {"cycle_id", "periodo", "orden", "caea_code", "status", "fch_vig_hasta"} <= item.keys()
+        assert sorted(p["pto_vta"] for p in item["ptos_venta"]) == [98, 99]
+        assert all(p["emitidos"] == 0 and p["sin_movimiento_at"] is None for p in item["ptos_venta"])

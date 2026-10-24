@@ -1,9 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from service.api.models.wsfe_caea_resilience import (
-    QueueIssueLocalInvoiceRequest, QueueSolicitCaeaRequest)
+    QueueIssueLocalInvoiceRequest, QueuePtosVentaRequest,
+    QueueSolicitCaeaRequest)
 from service.caea_resilience import repository as repo
-from service.caea_resilience.bootstrap import resolve_current_and_next_cycles
+from service.caea_resilience.bootstrap import (bootstrap_cuit_cycles,
+                                              resolve_current_and_next_cycles)
 from service.caea_resilience.db import init_db
 from service.caea_resilience.outbox_worker import process_pending_outbox_jobs
 from service.controllers.request_last_authorized_controller import \
@@ -123,3 +125,17 @@ async def active_caea(cuit: int, jwt=Depends(verify_token)) -> dict:
             }
         )
     return {"status": "ok", "cycles": cycles}
+
+
+@router.put("/wsfe/caea/queue/ptos-venta")
+async def set_caea_ptos_venta(payload: QueuePtosVentaRequest, jwt=Depends(verify_token)) -> dict:
+    init_db()
+    repo.set_ptos_venta(payload.Cuit, payload.PtosVenta)
+    bootstrap_cuit_cycles(payload.Cuit)
+    return {"status": "ok", "cuit": payload.Cuit, "ptos_venta": payload.PtosVenta}
+
+
+@router.get("/wsfe/caea/queue/cycles")
+async def list_caea_cycles(cuit: int, jwt=Depends(verify_token)) -> dict:
+    init_db()
+    return {"status": "ok", "items": repo.list_cycles_with_pvs(cuit)}

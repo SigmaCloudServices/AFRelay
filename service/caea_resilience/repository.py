@@ -416,3 +416,88 @@ def list_caea_assignments(limit: int = 200) -> list[dict[str, Any]]:
         return [dict(r) for r in rows]
     finally:
         conn.close()
+
+
+def set_ptos_venta(cuit: int, ptos_venta: list[int]) -> None:
+    conn = get_connection()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        conn.execute("DELETE FROM caea_pto_vta WHERE cuit=?", (cuit,))
+        conn.executemany("INSERT OR IGNORE INTO caea_pto_vta (cuit, pto_vta) VALUES (?, ?)", [(cuit, int(p)) for p in ptos_venta])
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def list_registered_cuits() -> list[int]:
+    conn = get_connection()
+    try:
+        return [row["cuit"] for row in conn.execute("SELECT DISTINCT cuit FROM caea_pto_vta ORDER BY cuit").fetchall()]
+    finally:
+        conn.close()
+
+
+def list_closed_cycles_without_sin_movimiento(today: str) -> list[dict[str, Any]]:
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """
+            SELECT c.id AS cycle_id, c.cuit, p.pto_vta, c.caea_code
+              FROM caea_cycle c
+              JOIN caea_pto_vta p ON p.cuit = c.cuit
+              LEFT JOIN caea_cycle_pv s ON s.cycle_id = c.id AND s.pto_vta = p.pto_vta
+             WHERE c.status = 'active' AND c.caea_code IS NOT NULL AND c.fch_vig_hasta < ?
+               AND s.sin_movimiento_at IS NULL
+               AND NOT EXISTS (SELECT 1 FROM caea_invoice i WHERE i.cycle_id = c.id AND i.pto_vta = p.pto_vta)
+             ORDER BY c.id, p.pto_vta
+            """,
+            (today,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def mark_sin_movimiento(cycle_id: int, pto_vta: int, response: dict[str, Any]) -> None:
+    conn = get_connection()
+    try:
+        conn.execute(
+            """
+            INSERT INTO caea_cycle_pv (cycle_id, pto_vta, sin_movimiento_at, sin_movimiento_response)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(cycle_id, pto_vta) DO UPDATE SET
+                sin_movimiento_at=excluded.sin_movimiento_at, sin_movimiento_response=excluded.sin_movimiento_response
+            """,
+            (cycle_id, pto_vta, _now_iso(), json.dumps(response)),
+        )
+    finally:
+        conn.close()
+
+
+def list_cycles_with_pvs(cuit: int) -> list[dict[str, Any]]:
+    conn = get_connection()
+    try:
+        cycles = [dict(r) for r in conn.execute(
+            "SELECT * FROM caea_cycle WHERE cuit=? ORDER BY periodo DESC, orden DESC LIMIT 12", (cuit,)).fetchall()]
+        pvs = [r["pto_vta"] for r in conn.execute("SELECT pto_vta FROM caea_pto_vta WHERE cuit=? ORDER BY pto_vta", (cuit,)).fetchall()]
+        for cycle in cycles:
+            items = []
+            for pv in pvs:
+                emitted = conn.execute(
+                    "SELECT COUNT(*) AS n FROM caea_invoice WHERE cycle_id=? AND pto_vta=?", (cycle["id"], pv)).fetchone()["n"]
+                sm = conn.execute(
+                    "SELECT * FROM caea_cycle_pv WHERE cycle_id=? AND pto_vta=?", (cycle["id"], pv)).fetchone()
+                items.append({
+                    "pto_vta": pv,
+                    "emitidos": emitted,
+                    "sin_movimiento_at": sm["sin_movimiento_at"] if sm else None,
+                    "sin_movimiento_response": json.loads(sm["sin_movimiento_response"]) if sm and sm["sin_movimiento_response"] else None,
+                })
+            cycle["cycle_id"] = cycle.pop("id")
+            cycle["ptos_venta"] = items
+        return cycles
+    finally:
+        conn.close()

@@ -7,7 +7,8 @@ from service.controllers.request_access_token_controller import \
     generate_afip_access_token
 from service.controllers.request_wspci_access_token_controller import \
     generate_wspci_access_token
-from service.caea_resilience.bootstrap import bootstrap_caea_cycles_once
+from service.caea_resilience.bootstrap import (bootstrap_caea_cycles_once,
+                                              inform_sin_movimiento_once)
 from service.caea_resilience.outbox_worker import process_pending_outbox_jobs
 from service.time.time_management import \
     generate_ntp_timestamp as time_provider
@@ -117,6 +118,17 @@ def start_scheduler():
         max_instances=1,
         coalesce=True,
         next_run_time=datetime.now(timezone.utc),
+    )
+    scheduler.add_job(
+        inform_sin_movimiento_once,
+        trigger="cron",
+        hour=6,
+        minute=30,
+        timezone="America/Argentina/Buenos_Aires",
+        id="caea_sin_movimiento",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
     )
     scheduler.start()   
 

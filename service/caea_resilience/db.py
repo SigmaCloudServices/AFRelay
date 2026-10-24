@@ -89,6 +89,26 @@ def init_db() -> None:
             );
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS caea_pto_vta (
+                cuit INTEGER NOT NULL,
+                pto_vta INTEGER NOT NULL,
+                PRIMARY KEY (cuit, pto_vta)
+            );
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS caea_cycle_pv (
+                cycle_id INTEGER NOT NULL,
+                pto_vta INTEGER NOT NULL,
+                sin_movimiento_at TEXT,
+                sin_movimiento_response TEXT,
+                PRIMARY KEY (cycle_id, pto_vta)
+            );
+            """
+        )
     finally:
         conn.close()
 

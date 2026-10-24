@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from service.caea_resilience import repository as repo
 from service.caea_resilience.db import init_db
 from service.caea_resilience.outbox_worker import process_pending_outbox_jobs
+from service.controllers.wsfe_caea_controller import caea_sin_movimiento_informar
 from service.utils.logger import logger
 
 AR_TZ = timezone(timedelta(hours=-3))
@@ -49,8 +50,6 @@ def bootstrap_cuit_cycles(cuit: int) -> dict[str, int]:
 
 def _configured_cuits() -> list[int]:
     raw = os.getenv("CAEA_BOOTSTRAP_CUITS", "").strip()
-    if not raw:
-        return []
     values = []
     for chunk in raw.split(","):
         piece = chunk.strip()
@@ -60,7 +59,31 @@ def _configured_cuits() -> list[int]:
             values.append(int(piece))
         except ValueError:
             logger.warning("Ignoring invalid CUIT in CAEA_BOOTSTRAP_CUITS: %s", piece)
-    return values
+    for cuit in repo.list_registered_cuits():
+        if cuit not in values:
+            values.append(cuit)
+    return list(dict.fromkeys(values))
+
+
+def pending_sin_movimiento(today: str) -> list[tuple[int, int, int, str]]:
+    return [
+        (row["cycle_id"], row["cuit"], row["pto_vta"], row["caea_code"])
+        for row in repo.list_closed_cycles_without_sin_movimiento(today)
+    ]
+
+
+async def inform_sin_movimiento_once() -> dict:
+    init_db()
+    today = datetime.now(timezone.utc).astimezone(AR_TZ).strftime("%Y%m%d")
+    done = 0
+    for cycle_id, cuit, pto_vta, caea in pending_sin_movimiento(today):
+        response = await caea_sin_movimiento_informar({"Cuit": cuit, "PtoVta": pto_vta, "CAEA": caea})
+        if response.get("status") == "success":
+            repo.mark_sin_movimiento(cycle_id, pto_vta, response)
+            done += 1
+        else:
+            logger.warning("Sin movimiento failed cuit=%s pv=%s caea=%s: %s", cuit, pto_vta, caea, response)
+    return {"informed": done}
 
 
 async def bootstrap_caea_cycles_once() -> dict:
