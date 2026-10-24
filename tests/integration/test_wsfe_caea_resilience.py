@@ -1,4 +1,6 @@
+import threading
 from pathlib import Path
+from unittest.mock import AsyncMock
 
 import pytest
 from httpx import AsyncClient
@@ -40,7 +42,11 @@ async def test_queue_solicitar_and_list_outbox(client: AsyncClient, override_aut
 
 
 @pytest.mark.asyncio
-async def test_issue_local_reserves_number_and_queues_job(client: AsyncClient, override_auth, isolated_state_db):
+async def test_issue_local_reserves_number_and_queues_job(client: AsyncClient, override_auth, isolated_state_db, monkeypatch):
+    monkeypatch.setattr(
+        "service.api.wsfe_caea_resilience.get_last_authorized_info",
+        AsyncMock(return_value={"status": "success", "response": {"CbteNro": 0}}),
+    )
     cycle_resp = await client.post(
         "/wsfe/caea/queue/solicitar",
         json={"Cuit": 30740253022, "Periodo": 202602, "Orden": 1},
@@ -160,3 +166,38 @@ async def test_solicit_without_caea_is_not_marked_active(client: AsyncClient, ov
     outbox = await client.get("/wsfe/caea/queue/outbox?status=retrying&limit=20")
     assert outbox.status_code == 200
     assert any(item["idempotency_key"].endswith(":202602:2") for item in outbox.json()["items"])
+
+
+def _payload(pv=98, tipo=6):
+    return {
+        "FeCabReq": {"CantReg": 1, "PtoVta": pv, "CbteTipo": tipo},
+        "FeDetReq": {"FECAEADetRequest": [{"CbteDesde": 0, "CbteHasta": 0, "CbteFch": "20261024"}]},
+    }
+
+
+def test_issue_local_invoice_numbers_are_unique_under_concurrency(isolated_state_db):
+    cycle = repo.create_cycle(30575099943, 202610, 2)
+    results, errors = [], []
+
+    def worker():
+        try:
+            results.append(repo.issue_local_invoice(cycle["id"], 30575099943, 98, 6, _payload(), seed_last_nro=None)["cbte_nro"])
+        except Exception as exc:  # pragma: no cover - surfaced by the assert below
+            errors.append(exc)
+
+    threads = [threading.Thread(target=worker) for _ in range(20)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert errors == []
+    assert sorted(results) == list(range(1, 21))
+
+
+def test_issue_local_invoice_starts_after_arca_last_authorized(isolated_state_db):
+    cycle = repo.create_cycle(30575099943, 202610, 2)
+    row = repo.issue_local_invoice(cycle["id"], 30575099943, 98, 6, _payload(), seed_last_nro=41)
+    assert row["cbte_nro"] == 42
+    # once there are local rows the seed is ignored
+    row = repo.issue_local_invoice(cycle["id"], 30575099943, 98, 6, _payload(), seed_last_nro=0)
+    assert row["cbte_nro"] == 43

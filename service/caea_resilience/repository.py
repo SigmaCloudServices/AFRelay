@@ -134,38 +134,43 @@ def normalize_cycle_statuses() -> None:
         conn.close()
 
 
-def reserve_next_invoice_number(cuit: int, pto_vta: int, cbte_tipo: int) -> int:
+def has_local_invoices(cuit: int, pto_vta: int, cbte_tipo: int) -> bool:
     conn = get_connection()
     try:
-        conn.execute("BEGIN IMMEDIATE")
         row = conn.execute(
-            """
-            SELECT MAX(cbte_nro) AS max_nro
-              FROM caea_invoice
-             WHERE cuit=? AND pto_vta=? AND cbte_tipo=?
-            """,
+            "SELECT 1 FROM caea_invoice WHERE cuit=? AND pto_vta=? AND cbte_tipo=? LIMIT 1",
             (cuit, pto_vta, cbte_tipo),
         ).fetchone()
-        next_nro = int(row["max_nro"] or 0) + 1
-        conn.commit()
-        return next_nro
-    except Exception:
-        conn.rollback()
-        raise
+        return row is not None
     finally:
         conn.close()
 
 
-def create_local_invoice(
+def issue_local_invoice(
     cycle_id: int,
     cuit: int,
     pto_vta: int,
     cbte_tipo: int,
-    cbte_nro: int,
     payload: dict[str, Any],
+    seed_last_nro: int | None,
 ) -> dict[str, Any]:
+    """Reserve the next number and insert the invoice in one IMMEDIATE transaction.
+
+    seed_last_nro is ARCA's last authorized number for this PV/type; it is only used
+    when there are no local invoices yet.
+    """
     conn = get_connection()
     try:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute(
+            "SELECT MAX(cbte_nro) AS max_nro FROM caea_invoice WHERE cuit=? AND pto_vta=? AND cbte_tipo=?",
+            (cuit, pto_vta, cbte_tipo),
+        ).fetchone()
+        last = row["max_nro"] if row["max_nro"] is not None else int(seed_last_nro or 0)
+        cbte_nro = int(last) + 1
+        det = payload["FeDetReq"]["FECAEADetRequest"][0]
+        det["CbteDesde"] = cbte_nro
+        det["CbteHasta"] = cbte_nro
         now = _now_iso()
         conn.execute(
             """
@@ -175,8 +180,12 @@ def create_local_invoice(
             """,
             (cycle_id, cuit, pto_vta, cbte_tipo, cbte_nro, json.dumps(payload), now, now),
         )
-        row = conn.execute("SELECT * FROM caea_invoice WHERE id = last_insert_rowid()").fetchone()
-        return dict(row)
+        inserted = conn.execute("SELECT * FROM caea_invoice WHERE id = last_insert_rowid()").fetchone()
+        conn.commit()
+        return dict(inserted)
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 

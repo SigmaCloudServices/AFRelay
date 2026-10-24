@@ -6,6 +6,8 @@ from service.caea_resilience import repository as repo
 from service.caea_resilience.bootstrap import resolve_current_and_next_cycles
 from service.caea_resilience.db import init_db
 from service.caea_resilience.outbox_worker import process_pending_outbox_jobs
+from service.controllers.request_last_authorized_controller import \
+    get_last_authorized_info
 from service.utils.jwt_validator import verify_token
 from service.utils.logger import logger
 
@@ -39,21 +41,26 @@ async def queue_issue_local_invoice(payload: QueueIssueLocalInvoiceRequest, jwt=
             detail="No active CAEA code loaded for this cycle. Wait bootstrap/solicitar to complete.",
         )
 
-    next_nro = repo.reserve_next_invoice_number(data["Cuit"], data["PtoVta"], data["CbteTipo"])
+    seed = None
+    if not repo.has_local_invoices(data["Cuit"], data["PtoVta"], data["CbteTipo"]):
+        last = await get_last_authorized_info(
+            {"Cuit": data["Cuit"], "PtoVta": data["PtoVta"], "CbteTipo": data["CbteTipo"]}
+        )
+        if last.get("status") != "success":
+            raise HTTPException(status_code=503, detail=f"Cannot read last authorized from ARCA: {last}")
+        seed = int((last.get("response") or {}).get("CbteNro") or 0)
 
     det_req = data["FeCAEARegInfReq"]["FeDetReq"]["FECAEADetRequest"][0]
-    det_req["CbteDesde"] = next_nro
-    det_req["CbteHasta"] = next_nro
     det_req["CAEA"] = cycle["caea_code"]
-
-    local_invoice = repo.create_local_invoice(
-        cycle_id=data["CycleId"],
+    local_invoice = repo.issue_local_invoice(
+        cycle_id=cycle["id"],
         cuit=data["Cuit"],
         pto_vta=data["PtoVta"],
         cbte_tipo=data["CbteTipo"],
-        cbte_nro=next_nro,
         payload=data["FeCAEARegInfReq"],
+        seed_last_nro=seed,
     )
+    next_nro = local_invoice["cbte_nro"]
 
     request = {"Cuit": data["Cuit"], "FeCAEARegInfReq": data["FeCAEARegInfReq"]}
     job = repo.add_outbox_job(
