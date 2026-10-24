@@ -218,7 +218,7 @@ def mark_invoice_informed(invoice_id: int, response: dict[str, Any] | None = Non
     try:
         now = _now_iso()
         conn.execute(
-            "UPDATE caea_invoice SET status='informed', informed_at=?, updated_at=?, last_error=?, response_json=? WHERE id=?",
+            "UPDATE caea_invoice SET status='informed', informed_at=?, updated_at=?, last_error=?, response_json=? WHERE id=? AND status NOT IN ('informed', 'rejected')",
             (now, now, message or None, json.dumps(response) if response else None, invoice_id),
         )
     finally:
@@ -230,7 +230,7 @@ def mark_invoice_rejected(invoice_id: int, response: dict[str, Any], message: st
     try:
         now = _now_iso()
         conn.execute(
-            "UPDATE caea_invoice SET status='rejected', informed_at=?, updated_at=?, last_error=?, response_json=? WHERE id=?",
+            "UPDATE caea_invoice SET status='rejected', informed_at=?, updated_at=?, last_error=?, response_json=? WHERE id=? AND status NOT IN ('informed', 'rejected')",
             (now, now, message, json.dumps(response), invoice_id),
         )
     finally:
@@ -261,7 +261,7 @@ def mark_invoice_error(invoice_id: int, error: str) -> None:
     conn = get_connection()
     try:
         conn.execute(
-            "UPDATE caea_invoice SET status='error', updated_at=?, last_error=? WHERE id=?",
+            "UPDATE caea_invoice SET status='error', updated_at=?, last_error=? WHERE id=? AND status NOT IN ('informed', 'rejected')",
             (_now_iso(), error, invoice_id),
         )
     finally:
@@ -326,13 +326,15 @@ def fetch_due_outbox_jobs(limit: int = 20) -> list[dict[str, Any]]:
         conn.close()
 
 
-def mark_outbox_processing(job_id: int) -> None:
+def claim_outbox_job(job_id: int) -> bool:
+    """Atomically move a due job to 'processing'. False if another runner already took it."""
     conn = get_connection()
     try:
-        conn.execute(
-            "UPDATE afip_outbox SET status='processing', updated_at=? WHERE id=?",
+        cur = conn.execute(
+            "UPDATE afip_outbox SET status='processing', updated_at=? WHERE id=? AND status IN ('pending', 'retrying')",
             (_now_iso(), job_id),
         )
+        return cur.rowcount == 1
     finally:
         conn.close()
 
@@ -344,7 +346,7 @@ def mark_outbox_done(job_id: int, response: dict[str, Any]) -> None:
             """
             UPDATE afip_outbox
                SET status='done', updated_at=?, last_error=NULL, last_response_json=?
-             WHERE id=?
+             WHERE id=? AND status='processing'
             """,
             (_now_iso(), json.dumps(response), job_id),
         )
@@ -360,7 +362,7 @@ def mark_outbox_retry(job_id: int, attempts: int, next_retry_at: str, error: str
             """
             UPDATE afip_outbox
                SET status=?, attempts=?, next_retry_at=?, last_error=?, updated_at=?
-             WHERE id=?
+             WHERE id=? AND status='processing'
             """,
             (status, attempts, next_retry_at, error, _now_iso(), job_id),
         )

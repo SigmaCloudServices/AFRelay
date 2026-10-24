@@ -90,11 +90,16 @@ async def process_pending_outbox_jobs(limit: int = 20) -> dict[str, int]:
     done = 0
     retried = 0
     failed = 0
+    processed = 0
 
     for job in jobs:
         job_id = job["id"]
+        # Several runners (scheduler, bootstrap, retry endpoints) may hold the same batch:
+        # only the one whose atomic claim succeeds processes the job.
+        if not repo.claim_outbox_job(job_id):
+            continue
+        processed += 1
         payload = json.loads(job["payload_json"])
-        repo.mark_outbox_processing(job_id)
         emit_domain_event(
             event_type="outbox_job",
             service="wsfe",
@@ -173,4 +178,4 @@ async def process_pending_outbox_jobs(limit: int = 20) -> dict[str, int]:
                 payload={"job_id": job_id, "attempts": attempts},
             )
 
-    return {"processed": len(jobs), "done": done, "retried": retried, "failed": failed}
+    return {"processed": processed, "done": done, "retried": retried, "failed": failed}
