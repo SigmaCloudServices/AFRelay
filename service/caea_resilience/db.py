@@ -34,6 +34,10 @@ def init_db() -> None:
             );
             """
         )
+        existing = {row["name"] for row in conn.execute("PRAGMA table_info(caea_cycle)").fetchall()}
+        for column in ("fch_vig_desde", "fch_vig_hasta", "fch_tope_inf"):
+            if column not in existing:
+                conn.execute(f"ALTER TABLE caea_cycle ADD COLUMN {column} TEXT")
         conn.execute(
             """
             CREATE UNIQUE INDEX IF NOT EXISTS ux_caea_cycle

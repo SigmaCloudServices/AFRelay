@@ -32,9 +32,13 @@ async def queue_solicitar_caea(payload: QueueSolicitCaeaRequest, jwt=Depends(ver
 async def queue_issue_local_invoice(payload: QueueIssueLocalInvoiceRequest, jwt=Depends(verify_token)) -> dict:
     init_db()
     data = payload.model_dump()
-    cycle = repo.get_cycle_by_id(data["CycleId"])
+    if data.get("CycleId"):
+        cycle = repo.get_cycle_by_id(data["CycleId"])
+    else:
+        cbte_fch = data["FeCAEARegInfReq"]["FeDetReq"]["FECAEADetRequest"][0]["CbteFch"]
+        cycle = repo.find_cycle_for_date(data["Cuit"], cbte_fch)
     if not cycle or cycle["cuit"] != data["Cuit"]:
-        raise HTTPException(status_code=404, detail="CAEA cycle not found for given CycleId/Cuit")
+        raise HTTPException(status_code=404, detail="No CAEA cycle for this Cuit/date")
     if cycle.get("status") != "active" or not cycle.get("caea_code"):
         raise HTTPException(
             status_code=409,
@@ -100,8 +104,12 @@ async def active_caea(cuit: int, jwt=Depends(verify_token)) -> dict:
         cycle = repo.get_cycle(cuit, periodo, orden)
         cycles.append(
             {
+                "cycle_id": (cycle or {}).get("id"),
                 "periodo": periodo,
                 "orden": orden,
+                "fch_vig_desde": (cycle or {}).get("fch_vig_desde"),
+                "fch_vig_hasta": (cycle or {}).get("fch_vig_hasta"),
+                "fch_tope_inf": (cycle or {}).get("fch_tope_inf"),
                 "active": bool(active),
                 "caea_code": (active or {}).get("caea_code"),
                 "status": (cycle or {}).get("status"),

@@ -8,7 +8,7 @@ class QueueSolicitCaeaRequest(BaseModel):
 
 
 class QueueIssueLocalInvoiceRequest(BaseModel):
-    CycleId: int
+    CycleId: int | None = None
     Cuit: int
     PtoVta: int
     CbteTipo: int

@@ -201,3 +201,33 @@ def test_issue_local_invoice_starts_after_arca_last_authorized(isolated_state_db
     # once there are local rows the seed is ignored
     row = repo.issue_local_invoice(cycle["id"], 30575099943, 98, 6, _payload(), seed_last_nro=0)
     assert row["cbte_nro"] == 43
+
+
+def test_cycle_stores_validity_dates(isolated_state_db):
+    cycle = repo.create_cycle(30575099943, 202610, 2)
+    repo.update_cycle_from_afip(cycle["id"], {"ResultGet": {
+        "CAEA": "61234567890123", "FchVigDesde": "20261016", "FchVigHasta": "20261031", "FchTopeInf": "20261108"}})
+    stored = repo.get_cycle_by_id(cycle["id"])
+    assert (stored["fch_vig_desde"], stored["fch_vig_hasta"], stored["fch_tope_inf"]) == ("20261016", "20261031", "20261108")
+    assert repo.find_cycle_for_date(30575099943, "20261024")["id"] == cycle["id"]
+    assert repo.find_cycle_for_date(30575099943, "20261101") is None
+
+
+@pytest.mark.asyncio
+async def test_issue_local_without_cycle_id_uses_cycle_of_cbte_fch(client, override_auth, isolated_state_db, monkeypatch):
+    cycle = repo.create_cycle(30575099943, 202610, 2)
+    repo.update_cycle_from_afip(cycle["id"], {"ResultGet": {
+        "CAEA": "61234567890123", "FchVigDesde": "20261016", "FchVigHasta": "20261031", "FchTopeInf": "20261108"}})
+    monkeypatch.setattr(
+        "service.api.wsfe_caea_resilience.get_last_authorized_info",
+        AsyncMock(return_value={"status": "success", "response": {"CbteNro": 0}}),
+    )
+    body = {"Cuit": 30575099943, "PtoVta": 98, "CbteTipo": 6, "FeCAEARegInfReq": {
+        "FeCabReq": {"CantReg": 1, "PtoVta": 98, "CbteTipo": 6},
+        "FeDetReq": {"FECAEADetRequest": [{"CbteDesde": 0, "CbteHasta": 0, "CbteFch": "20261024"}]}}}
+    resp = await client.post("/wsfe/caea/queue/issue-local", json=body)
+    assert resp.status_code == 200
+    assert resp.json()["invoice"]["cycle_id"] == cycle["id"]
+
+    active = (await client.get("/wsfe/caea/queue/active?cuit=30575099943")).json()
+    assert all("cycle_id" in c for c in active["cycles"])

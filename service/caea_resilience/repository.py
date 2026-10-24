@@ -79,17 +79,40 @@ def update_cycle_from_afip(cycle_id: int, afip_result: dict[str, Any], status: s
     conn = get_connection()
     try:
         now = _now_iso()
-        caea = ((afip_result or {}).get("ResultGet") or {}).get("CAEA")
+        result_get = (afip_result or {}).get("ResultGet") or {}
+        caea = result_get.get("CAEA")
         final_status = status if caea else "requested"
         last_error = None if caea else "missing_caea_code"
         conn.execute(
             """
             UPDATE caea_cycle
-               SET caea_code=?, status=?, updated_at=?, last_error=?
+               SET caea_code=?, status=?, updated_at=?, last_error=?,
+                   fch_vig_desde=?, fch_vig_hasta=?, fch_tope_inf=?
              WHERE id=?
             """,
-            (caea, final_status, now, last_error, cycle_id),
+            (
+                caea, final_status, now, last_error,
+                result_get.get("FchVigDesde"), result_get.get("FchVigHasta"), result_get.get("FchTopeInf"),
+                cycle_id,
+            ),
         )
+    finally:
+        conn.close()
+
+
+def find_cycle_for_date(cuit: int, cbte_fch: str) -> dict[str, Any] | None:
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            """
+            SELECT * FROM caea_cycle
+             WHERE cuit=? AND status='active' AND caea_code IS NOT NULL
+               AND fch_vig_desde <= ? AND fch_vig_hasta >= ?
+             ORDER BY periodo DESC, orden DESC LIMIT 1
+            """,
+            (cuit, cbte_fch, cbte_fch),
+        ).fetchone()
+        return dict(row) if row else None
     finally:
         conn.close()
 
