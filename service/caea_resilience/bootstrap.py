@@ -3,7 +3,10 @@ from datetime import datetime, timedelta, timezone
 
 from service.caea_resilience import repository as repo
 from service.caea_resilience.db import init_db
-from service.caea_resilience.outbox_worker import process_pending_outbox_jobs
+from service.caea_resilience.numbering import seed_numbering
+from service.caea_resilience.outbox_worker import (_extract_errors,
+                                                   process_pending_outbox_jobs)
+from service.controllers.wsfe_caea_controller import caea_sin_movimiento_informar
 from service.utils.logger import logger
 
 AR_TZ = timezone(timedelta(hours=-3))
@@ -49,8 +52,6 @@ def bootstrap_cuit_cycles(cuit: int) -> dict[str, int]:
 
 def _configured_cuits() -> list[int]:
     raw = os.getenv("CAEA_BOOTSTRAP_CUITS", "").strip()
-    if not raw:
-        return []
     values = []
     for chunk in raw.split(","):
         piece = chunk.strip()
@@ -60,12 +61,74 @@ def _configured_cuits() -> list[int]:
             values.append(int(piece))
         except ValueError:
             logger.warning("Ignoring invalid CUIT in CAEA_BOOTSTRAP_CUITS: %s", piece)
-    return values
+    for cuit in repo.list_registered_cuits():
+        if cuit not in values:
+            values.append(cuit)
+    return list(dict.fromkeys(values))
+
+
+def _past_tope(row: dict, today: str) -> bool:
+    return bool(row.get("fch_tope_inf")) and today > row["fch_tope_inf"]
+
+
+def pending_sin_movimiento(today: str) -> list[tuple[int, int, int, str]]:
+    """Closed cycles x unused PVs still within the inform deadline (fch_tope_inf, when known)."""
+    return [
+        (row["cycle_id"], row["cuit"], row["pto_vta"], row["caea_code"])
+        for row in repo.list_closed_cycles_without_sin_movimiento(today)
+        if not _past_tope(row, today)
+    ]
+
+
+def overdue_sin_movimiento(today: str) -> list[tuple[int, int, int, str, str]]:
+    """Closed cycles x unused PVs whose fch_tope_inf already passed without a sin movimiento."""
+    return [
+        (row["cycle_id"], row["cuit"], row["pto_vta"], row["caea_code"], row["fch_tope_inf"])
+        for row in repo.list_closed_cycles_without_sin_movimiento(today)
+        if _past_tope(row, today)
+    ]
+
+
+async def inform_sin_movimiento_once(today: str | None = None) -> dict:
+    init_db()
+    today = today or datetime.now(timezone.utc).astimezone(AR_TZ).strftime("%Y%m%d")
+    overdue = overdue_sin_movimiento(today)
+    if overdue:
+        # Past ARCA's deadline: do not keep retrying, flag it for a human (one line per run).
+        logger.error(
+            "CAEA sin movimiento NOT informed before fch_tope_inf (manual action required): %s",
+            ", ".join(f"cuit={c} pv={p} caea={caea} tope={tope}" for _, c, p, caea, tope in overdue),
+        )
+    done = 0
+    for cycle_id, cuit, pto_vta, caea in pending_sin_movimiento(today):
+        try:
+            response = await caea_sin_movimiento_informar({"Cuit": cuit, "PtoVta": pto_vta, "CAEA": caea})
+        except Exception as exc:
+            logger.warning("Sin movimiento raised cuit=%s pv=%s caea=%s: %s", cuit, pto_vta, caea, exc)
+            continue
+        payload = response.get("response") if isinstance(response, dict) else None
+        payload = payload if isinstance(payload, dict) else {}
+        errors = _extract_errors(payload)
+        resultado = payload.get("Resultado")
+        if response.get("status") == "success" and not errors and resultado != "R":
+            repo.mark_sin_movimiento(cycle_id, pto_vta, response)
+            done += 1
+        else:
+            detail = " | ".join(f"{e.get('Code')}: {e.get('Msg')}" for e in errors) or response
+            logger.warning("Sin movimiento failed cuit=%s pv=%s caea=%s resultado=%s: %s",
+                           cuit, pto_vta, caea, resultado, detail)
+    return {"informed": done}
 
 
 async def bootstrap_caea_cycles_once() -> dict:
     init_db()
+    recovered = repo.recover_stranded_processing_jobs()
+    if recovered:
+        logger.warning("CAEA bootstrap: recovered %s outbox jobs stranded in processing", recovered)
     repo.normalize_cycle_statuses()
+    for registered in repo.list_registered_cuits():
+        seeding = await seed_numbering(registered)
+        logger.info("CAEA numbering seed cuit=%s: %s", registered, seeding)
     cuits = _configured_cuits()
     if not cuits:
         logger.info("CAEA bootstrap skipped: no CAEA_BOOTSTRAP_CUITS configured")

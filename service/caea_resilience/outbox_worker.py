@@ -49,6 +49,27 @@ def _extract_errors(response_payload: dict[str, Any]) -> list[dict[str, Any]]:
     return err_list
 
 
+def classify_inform_response(response: dict[str, Any]) -> tuple[str, str]:
+    payload = response.get("response") or {}
+    det = (payload.get("FeDetResp") or {}).get("FECAEADetResponse") or []
+    if isinstance(det, dict):
+        det = [det]
+    first = det[0] if det else {}
+    resultado = first.get("Resultado") or (payload.get("FeCabResp") or {}).get("Resultado")
+    parts = [f"{e.get('Code')}: {e.get('Msg')}" for e in _extract_errors(payload)]
+    obs = (first.get("Observaciones") or {}).get("Obs") or []
+    if isinstance(obs, dict):
+        obs = [obs]
+    parts += [f"{o.get('Code')}: {o.get('Msg')}" for o in obs if isinstance(o, dict)]
+    message = " | ".join(parts)
+    if resultado in ("A", "O"):
+        return "accepted", message
+    if resultado == "R":
+        return "rejected", message or "Resultado R sin detalle"
+    # No explicit Resultado (Errors-only, empty or malformed reply): transient, retry.
+    return "retry", message or "Respuesta de ARCA sin Resultado"
+
+
 def _deferred_retry_from_15006(response_payload: dict[str, Any]) -> str | None:
     for err in _extract_errors(response_payload):
         if str(err.get("Code")) != "15006":
@@ -69,11 +90,17 @@ async def process_pending_outbox_jobs(limit: int = 20) -> dict[str, int]:
     done = 0
     retried = 0
     failed = 0
+    processed = 0
 
     for job in jobs:
         job_id = job["id"]
+        # Several runners (scheduler, bootstrap, retry endpoints) may hold the same batch:
+        # only the one whose atomic claim succeeds processes the job.
+        job = repo.claim_outbox_job(job_id)
+        if job is None:
+            continue
+        processed += 1
         payload = json.loads(job["payload_json"])
-        repo.mark_outbox_processing(job_id)
         emit_domain_event(
             event_type="outbox_job",
             service="wsfe",
@@ -105,7 +132,13 @@ async def process_pending_outbox_jobs(limit: int = 20) -> dict[str, int]:
                 response = await _run_inform(payload)
                 if response["status"] != "success":
                     raise RuntimeError(str(response["error"]))
-                repo.mark_invoice_informed(payload["invoice_id"])
+                state, message = classify_inform_response(response)
+                if state == "retry":
+                    raise RuntimeError(message)
+                if state == "accepted":
+                    repo.mark_invoice_informed(payload["invoice_id"], response, message)
+                else:
+                    repo.mark_invoice_rejected(payload["invoice_id"], response, message)
             else:
                 raise RuntimeError(f"Unknown outbox job type: {job['job_type']}")
 
@@ -124,7 +157,13 @@ async def process_pending_outbox_jobs(limit: int = 20) -> dict[str, int]:
             next_retry = _next_retry(attempts)
             if isinstance(exc, DeferredRetryError):
                 next_retry = exc.next_retry_at
-            repo.mark_outbox_retry(job_id, attempts, next_retry, str(exc))
+            # Fiscal informs must eventually reach ARCA: no attempt cap, backoff tops at 1h.
+            max_attempts = None if job["job_type"] == "INFORM_CAEA_MOVEMENT" else repo.DEFAULT_MAX_ATTEMPTS
+            new_status = repo.mark_outbox_retry(job_id, attempts, next_retry, str(exc), max_attempts=max_attempts)
+            if new_status is None:
+                # No longer ours (recovered/claimed elsewhere): no counting, no cycle/invoice change.
+                logger.warning("Outbox job %s failed but is no longer processing here; leaving it: %s", job_id, exc)
+                continue
             logger.warning("Outbox job %s failed (attempt %s): %s", job_id, attempts, exc)
             if job["job_type"] == "SOLICIT_CAEA":
                 if isinstance(exc, DeferredRetryError):
@@ -132,8 +171,12 @@ async def process_pending_outbox_jobs(limit: int = 20) -> dict[str, int]:
                 else:
                     repo.set_cycle_error(payload["cycle_id"], str(exc))
             elif job["job_type"] == "INFORM_CAEA_MOVEMENT":
-                repo.mark_invoice_error(payload["invoice_id"], str(exc))
-            if attempts >= 10:
+                # Invoice state machine: issued_local -> informed | rejected; 'error' only on a dead job.
+                if new_status == "failed":
+                    repo.mark_invoice_error(payload["invoice_id"], str(exc))
+                else:
+                    repo.note_invoice_inform_error(payload["invoice_id"], str(exc))
+            if new_status == "failed":
                 failed += 1
             else:
                 retried += 1
@@ -146,4 +189,4 @@ async def process_pending_outbox_jobs(limit: int = 20) -> dict[str, int]:
                 payload={"job_id": job_id, "attempts": attempts},
             )
 
-    return {"processed": len(jobs), "done": done, "retried": retried, "failed": failed}
+    return {"processed": processed, "done": done, "retried": retried, "failed": failed}

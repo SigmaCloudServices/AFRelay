@@ -116,26 +116,30 @@ async def test_ui_tokens_and_operations_endpoints(client: AsyncClient, override_
     assert retry_data["status"] == "ok"
 
 
+def _inv_payload():
+    return {"FeDetReq": {"FECAEADetRequest": [{"CbteDesde": 0, "CbteHasta": 0}]}}
+
+
 @pytest.mark.asyncio
 async def test_ui_caea_assignments_endpoint(client: AsyncClient, override_auth, isolated_state_db):
     cycle = repo.create_cycle(cuit=30740253022, periodo=202602, orden=1)
     repo.update_cycle_from_afip(cycle["id"], {"ResultGet": {"CAEA": "61234567890123"}}, status="active")
 
-    inv_1 = repo.create_local_invoice(
+    inv_1 = repo.issue_local_invoice(
         cycle_id=cycle["id"],
         cuit=30740253022,
         pto_vta=3,
         cbte_tipo=11,
-        cbte_nro=501,
-        payload={},
+        payload=_inv_payload(),
+        seed_last_nro=500,
     )
-    inv_2 = repo.create_local_invoice(
+    inv_2 = repo.issue_local_invoice(
         cycle_id=cycle["id"],
         cuit=30740253022,
         pto_vta=3,
         cbte_tipo=11,
-        cbte_nro=502,
-        payload={},
+        payload=_inv_payload(),
+        seed_last_nro=501,
     )
     repo.mark_invoice_informed(inv_1["id"])
     repo.mark_invoice_error(inv_2["id"], "forced_error")
